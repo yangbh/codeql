@@ -140,6 +140,8 @@ extensions:
       - ["java.util", "LinkedHashSet", False, "LinkedHashSet", "(Collection)", "", "Argument[0].Element", "Argument[this].Element", "value", "manual"]
       - ["java.util", "LinkedList", False, "LinkedList", "(Collection)", "", "Argument[0].Element", "Argument[this].Element", "value", "manual"]
       - ["java.util", "List", True, "add", "(int,Object)", "", "Argument[1]", "Argument[this].Element", "value", "manual"]
+      # added by m0d9@202307
+      # - ["java.util", "List", True, "add", "(E)", "", "Argument[0]", "Argument[this].Element", "value", "manual"]
       - ["java.util", "List", True, "addAll", "(int,Collection)", "", "Argument[1].Element", "Argument[this].Element", "value", "manual"]
       - ["java.util", "List", False, "copyOf", "(Collection)", "", "Argument[0].Element", "ReturnValue.Element", "value", "manual"]
       - ["java.util", "List", True, "get", "(int)", "", "Argument[this].Element", "ReturnValue", "value", "manual"]
@@ -165,6 +167,8 @@ extensions:
       - ["java.util", "Map", True, "computeIfAbsent", "", "", "Argument[this].MapValue", "ReturnValue", "value", "manual"]
       - ["java.util", "Map", True, "computeIfAbsent", "", "", "Argument[1].ReturnValue", "Argument[this].MapValue", "value", "manual"]
       - ["java.util", "Map", True, "computeIfAbsent", "", "", "Argument[1].ReturnValue", "ReturnValue", "value", "manual"]
+      # added by m0d9@202307
+      - ["java.util", "Map", True, "computeIfAbsent", "", "", "Argument[0]", "Argument[this].MapKey", "value", "manual"]
       - ["java.util", "Map", False, "copyOf", "(Map)", "", "Argument[0].MapKey", "ReturnValue.MapKey", "value", "manual"]
       - ["java.util", "Map", False, "copyOf", "(Map)", "", "Argument[0].MapValue", "ReturnValue.MapValue", "value", "manual"]
       - ["java.util", "Map", False, "entry", "(Object,Object)", "", "Argument[0]", "ReturnValue.MapKey", "value", "manual"]

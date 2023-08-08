@@ -1,0 +1,6 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sourceModel
+    data: []
+      # 现有的规则描述不了，正常逻辑应该是@Path/@GET/@PUT 等修饰的method 的参数
