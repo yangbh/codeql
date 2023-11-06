@@ -14,6 +14,9 @@ extensions:
       - ["java.io", "FileInputStream", True, "FileInputStream", "(String)", "", "Argument[0]", "path-injection", "ai-manual"]
       - ["java.io", "FileOutputStream", False, "FileOutputStream", "", "", "Argument[0]", "path-injection", "manual"]
       - ["java.io", "FileOutputStream", False, "write", "", "", "Argument[0]", "file-content-store", "manual"]
+      # added by m0d9@202309, to be verified
+      # - ["java.io", "FileOutputStream", False, "write", "(byte)", "", "Argument[0]", "file-content-store", "manual"]
+      - ["java.io", "OutputStream", False, "write", "(byte[])", "", "Argument[0]", "test", "manual"]
       - ["java.io", "FileReader", True, "FileReader", "(File)", "", "Argument[0]", "path-injection", "ai-manual"]
       - ["java.io", "FileReader", True, "FileReader", "(String)", "", "Argument[0]", "path-injection", "ai-manual"]
       - ["java.io", "FileReader", True, "FileReader", "(String,Charset)", "", "Argument[0]", "path-injection", "manual"]
@@ -83,6 +86,8 @@ extensions:
       - ["java.io", "File", True, "toPath", "", "", "Argument[this]", "ReturnValue", "taint", "manual"]
       - ["java.io", "File", True, "toString", "", "", "Argument[this]", "ReturnValue", "taint", "manual"]
       - ["java.io", "File", True, "toURI", "", "", "Argument[this]", "ReturnValue", "taint", "manual"]
+      # added by m0d9@202309, to be verified
+      # - ["java.io", "FilterInputStream", True, "FilterInputStream", "(InputStream)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
       - ["java.io", "FilterOutputStream", True, "FilterOutputStream", "(OutputStream)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
       - ["java.io", "InputStream", True, "read", "(byte[])", "", "Argument[this]", "Argument[0]", "taint", "manual"]
       - ["java.io", "InputStream", True, "read", "(byte[],int,int)", "", "Argument[this]", "Argument[0]", "taint", "manual"]

@@ -285,6 +285,9 @@ extensions:
       - ["java.util", "PriorityQueue", False, "PriorityQueue", "(Collection)", "", "Argument[0].Element", "Argument[this].Element", "value", "manual"]
       - ["java.util", "PriorityQueue", False, "PriorityQueue", "(PriorityQueue)", "", "Argument[0].Element", "Argument[this].Element", "value", "manual"]
       - ["java.util", "PriorityQueue", False, "PriorityQueue", "(SortedSet)", "", "Argument[0].Element", "Argument[this].Element", "value", "manual"]
+      # added by m0d9@202309
+      - ["java.util", "Properties", True, "load", "(InputStream)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
+      - ["java.util", "Properties", True, "load", "(Reader)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
       - ["java.util", "Properties", True, "getProperty", "(String)", "", "Argument[this].MapValue", "ReturnValue", "value", "manual"]
       - ["java.util", "Properties", True, "getProperty", "(String,String)", "", "Argument[this].MapValue", "ReturnValue", "value", "manual"]
       - ["java.util", "Properties", True, "getProperty", "(String,String)", "", "Argument[1]", "ReturnValue", "value", "manual"]
