@@ -11,6 +11,20 @@ private module DispatchImpl {
     result.asCallable() = VirtualDispatch::viableCallable(c.asCall())
     or
     result.asCallable().(SummarizedCallable) = c.asCall().getCallee().getSourceDeclaration()
+    or 
+    exists( DataFlowCallable callable|
+      c.asCall().getCallee().hasName("start")
+      and c.asCall().getQualifier().getType().(RefType).getASupertype().hasQualifiedName("java.lang", "Thread")
+      and callable.asCallable().hasName("run")
+      and c.asCall().getQualifier().getType() = callable.asCallable().getDeclaringType()
+      and result = callable
+    )
+    // or
+    // exists( NativeCall dc|
+    //   c.asCall() = dc.getSrc()
+    //   and c.asCall().getAnArgument() = dc.getArg()
+    //   and result.asCallable() = dc.getDst()
+    // )
   }
 
   /**

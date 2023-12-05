@@ -12,6 +12,8 @@ private import DataFlowImplSpecific::Private
 import DataFlowImplSpecific::Public
 import DataFlowImplCommonPublic
 
+import semmle.code.java.Member
+
 /**
  * A configuration of interprocedural data flow analysis. This defines
  * sources, sinks, and any other configurable aspect of the analysis. Each
@@ -228,6 +230,28 @@ abstract class Configuration extends string {
   }
 }
 
+// class MyTaintTrackingConfig = Configuration;
+
+class MyTaintTrackingConfig extends Configuration {
+  MyTaintTrackingConfig() { this = "MyTaintTrackingConfig" }
+
+  override predicate isSource(Node source) {
+      exists(Method m | 
+          m.hasName("main") 
+          and m.getAParameter() = source.asParameter()
+      )
+      // and source.asParameter().getFile().getAbsolutePath().matches("%ThreadDemo.java")
+  }
+
+  override predicate isSink(Node sink) {
+      exists(MethodAccess ma | 
+        ma.getMethod().hasName("println") and
+        sink.asExpr() = ma.getAnArgument()
+      )
+      // sink.asExpr().getFile().getAbsolutePath().matches("%.java")
+  }
+}
+
 /**
  * This class exists to prevent mutual recursion between the user-overridden
  * member predicates of `Configuration` and the rest of the data-flow library.
@@ -261,7 +285,7 @@ private newtype TNodeEx =
     any(Configuration c).allowImplicitRead(n, _) and hasRead = [false, true]
   }
 
-private class NodeEx extends TNodeEx {
+class NodeEx extends TNodeEx {
   string toString() {
     result = this.asNode().toString()
     or
@@ -303,7 +327,7 @@ private class ArgNodeEx extends NodeEx {
   ArgNodeEx() { this.asNode() instanceof ArgNode }
 }
 
-private class ParamNodeEx extends NodeEx {
+class ParamNodeEx extends NodeEx {
   ParamNodeEx() { this.asNode() instanceof ParamNode }
 
   predicate isParameterOf(DataFlowCallable c, ParameterPosition pos) {
@@ -323,7 +347,7 @@ private class RetNodeEx extends NodeEx {
   ReturnKindExt getKind() { result = this.asNode().(ReturnNodeExt).getKind() }
 }
 
-private predicate inBarrier(NodeEx node, Configuration config) {
+private predicate inBarrier(NodeEx node, MyTaintTrackingConfig config) {
   exists(Node n |
     node.asNode() = n and
     config.isBarrierIn(n)
@@ -332,7 +356,7 @@ private predicate inBarrier(NodeEx node, Configuration config) {
   )
 }
 
-private predicate outBarrier(NodeEx node, Configuration config) {
+private predicate outBarrier(NodeEx node, MyTaintTrackingConfig config) {
   exists(Node n |
     node.asNode() = n and
     config.isBarrierOut(n)
@@ -343,20 +367,20 @@ private predicate outBarrier(NodeEx node, Configuration config) {
 
 /** A bridge class to access the deprecated `isBarrierGuard`. */
 private class BarrierGuardGuardedNodeBridge extends Unit {
-  abstract predicate guardedNode(Node n, Configuration config);
+  abstract predicate guardedNode(Node n, MyTaintTrackingConfig config);
 
-  abstract predicate guardedNode(Node n, FlowState state, Configuration config);
+  abstract predicate guardedNode(Node n, FlowState state, MyTaintTrackingConfig config);
 }
 
 private class BarrierGuardGuardedNode extends BarrierGuardGuardedNodeBridge {
-  deprecated override predicate guardedNode(Node n, Configuration config) {
+  deprecated override predicate guardedNode(Node n, MyTaintTrackingConfig config) {
     exists(BarrierGuard g |
       config.isBarrierGuard(g) and
       n = g.getAGuardedNode()
     )
   }
 
-  deprecated override predicate guardedNode(Node n, FlowState state, Configuration config) {
+  deprecated override predicate guardedNode(Node n, FlowState state, MyTaintTrackingConfig config) {
     exists(BarrierGuard g |
       config.isBarrierGuard(g, state) and
       n = g.getAGuardedNode()
@@ -365,7 +389,7 @@ private class BarrierGuardGuardedNode extends BarrierGuardGuardedNodeBridge {
 }
 
 pragma[nomagic]
-private predicate fullBarrier(NodeEx node, Configuration config) {
+private predicate fullBarrier(NodeEx node, MyTaintTrackingConfig config) {
   exists(Node n | node.asNode() = n |
     config.isBarrier(n)
     or
@@ -382,7 +406,7 @@ private predicate fullBarrier(NodeEx node, Configuration config) {
 }
 
 pragma[nomagic]
-private predicate stateBarrier(NodeEx node, FlowState state, Configuration config) {
+private predicate stateBarrier(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
   exists(Node n | node.asNode() = n |
     config.isBarrier(n, state)
     or
@@ -391,7 +415,7 @@ private predicate stateBarrier(NodeEx node, FlowState state, Configuration confi
 }
 
 pragma[nomagic]
-private predicate sourceNode(NodeEx node, FlowState state, Configuration config) {
+private predicate sourceNode(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
   (
     config.isSource(node.asNode()) and state instanceof FlowStateEmpty
     or
@@ -402,7 +426,7 @@ private predicate sourceNode(NodeEx node, FlowState state, Configuration config)
 }
 
 pragma[nomagic]
-private predicate sinkNode(NodeEx node, FlowState state, Configuration config) {
+private predicate sinkNode(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
   (
     config.isSink(node.asNode()) and state instanceof FlowStateEmpty
     or
@@ -414,7 +438,7 @@ private predicate sinkNode(NodeEx node, FlowState state, Configuration config) {
 
 /** Provides the relevant barriers for a step from `node1` to `node2`. */
 pragma[inline]
-private predicate stepFilter(NodeEx node1, NodeEx node2, Configuration config) {
+private predicate stepFilter(NodeEx node1, NodeEx node2, MyTaintTrackingConfig config) {
   not outBarrier(node1, config) and
   not inBarrier(node2, config) and
   not fullBarrier(node1, config) and
@@ -424,7 +448,7 @@ private predicate stepFilter(NodeEx node1, NodeEx node2, Configuration config) {
 /**
  * Holds if data can flow in one local step from `node1` to `node2`.
  */
-private predicate localFlowStep(NodeEx node1, NodeEx node2, Configuration config) {
+private predicate localFlowStep(NodeEx node1, NodeEx node2, MyTaintTrackingConfig config) {
   exists(Node n1, Node n2 |
     node1.asNode() = n1 and
     node2.asNode() = n2 and
@@ -443,7 +467,7 @@ private predicate localFlowStep(NodeEx node1, NodeEx node2, Configuration config
 /**
  * Holds if the additional step from `node1` to `node2` does not jump between callables.
  */
-private predicate additionalLocalFlowStep(NodeEx node1, NodeEx node2, Configuration config) {
+private predicate additionalLocalFlowStep(NodeEx node1, NodeEx node2, MyTaintTrackingConfig config) {
   exists(Node n1, Node n2 |
     node1.asNode() = n1 and
     node2.asNode() = n2 and
@@ -461,7 +485,7 @@ private predicate additionalLocalFlowStep(NodeEx node1, NodeEx node2, Configurat
 }
 
 private predicate additionalLocalStateStep(
-  NodeEx node1, FlowState s1, NodeEx node2, FlowState s2, Configuration config
+  NodeEx node1, FlowState s1, NodeEx node2, FlowState s2, MyTaintTrackingConfig config
 ) {
   exists(Node n1, Node n2 |
     node1.asNode() = n1 and
@@ -477,7 +501,7 @@ private predicate additionalLocalStateStep(
 /**
  * Holds if data can flow from `node1` to `node2` in a way that discards call contexts.
  */
-private predicate jumpStep(NodeEx node1, NodeEx node2, Configuration config) {
+private predicate jumpStep(NodeEx node1, NodeEx node2, MyTaintTrackingConfig config) {
   exists(Node n1, Node n2 |
     node1.asNode() = n1 and
     node2.asNode() = n2 and
@@ -490,7 +514,7 @@ private predicate jumpStep(NodeEx node1, NodeEx node2, Configuration config) {
 /**
  * Holds if the additional step from `node1` to `node2` jumps between callables.
  */
-private predicate additionalJumpStep(NodeEx node1, NodeEx node2, Configuration config) {
+private predicate additionalJumpStep(NodeEx node1, NodeEx node2, MyTaintTrackingConfig config) {
   exists(Node n1, Node n2 |
     node1.asNode() = n1 and
     node2.asNode() = n2 and
@@ -502,7 +526,7 @@ private predicate additionalJumpStep(NodeEx node1, NodeEx node2, Configuration c
 }
 
 private predicate additionalJumpStateStep(
-  NodeEx node1, FlowState s1, NodeEx node2, FlowState s2, Configuration config
+  NodeEx node1, FlowState s1, NodeEx node2, FlowState s2, MyTaintTrackingConfig config
 ) {
   exists(Node n1, Node n2 |
     node1.asNode() = n1 and
@@ -517,7 +541,7 @@ private predicate additionalJumpStateStep(
 }
 
 pragma[nomagic]
-private predicate readSet(NodeEx node1, ContentSet c, NodeEx node2, Configuration config) {
+private predicate readSet(NodeEx node1, ContentSet c, NodeEx node2, MyTaintTrackingConfig config) {
   readSet(node1.asNode(), c, node2.asNode()) and
   stepFilter(node1, node2, config)
   or
@@ -530,7 +554,7 @@ private predicate readSet(NodeEx node1, ContentSet c, NodeEx node2, Configuratio
 
 // inline to reduce fan-out via `getAReadContent`
 bindingset[c]
-private predicate read(NodeEx node1, Content c, NodeEx node2, Configuration config) {
+private predicate read(NodeEx node1, Content c, NodeEx node2, MyTaintTrackingConfig config) {
   exists(ContentSet cs |
     readSet(node1, cs, node2, config) and
     pragma[only_bind_out](c) = pragma[only_bind_into](cs).getAReadContent()
@@ -560,7 +584,7 @@ private predicate notExpectsContent(NodeEx n) { not expectsContentCached(n.asNod
 
 pragma[nomagic]
 private predicate store(
-  NodeEx node1, TypedContent tc, NodeEx node2, DataFlowType contentType, Configuration config
+  NodeEx node1, TypedContent tc, NodeEx node2, DataFlowType contentType, MyTaintTrackingConfig config
 ) {
   store(node1.asNode(), tc, node2.asNode(), contentType) and
   read(_, tc.getContent(), _, config) and
@@ -575,28 +599,41 @@ private predicate viableReturnPosOutEx(DataFlowCall call, ReturnPosition pos, No
 pragma[nomagic]
 private predicate viableParamArgEx(DataFlowCall call, ParamNodeEx p, ArgNodeEx arg) {
   viableParamArg(call, p.asNode(), arg.asNode())
+  // or threadViableParamArg(call ,p.asNode(), arg.asNode())
 }
+
+// private predicate threadViableParamArg(DataFlowCall call, ParamNode p, ArgNode arg) {
+//   // java.lang.Thread#start()
+//   exists( DataFlowCallable c|
+//     call.asCall().getCallee().hasName("start")
+//     and call.asCall().getQualifier().getType().(RefType).getASupertype().hasQualifiedName("java.lang", "Thread")
+//     and arg.argumentOf(call, -1)
+//     and p.isParameterOf(c, -1)
+//     and c.asCallable().hasName("run")
+//     and call.asCall().getQualifier().getType() = c.asCallable().getDeclaringType()
+//   )
+// }
 
 /**
  * Holds if field flow should be used for the given configuration.
  */
-private predicate useFieldFlow(Configuration config) { config.fieldFlowBranchLimit() >= 1 }
+private predicate useFieldFlow(MyTaintTrackingConfig config) { config.fieldFlowBranchLimit() >= 1 }
 
-private predicate hasSourceCallCtx(Configuration config) {
+private predicate hasSourceCallCtx(MyTaintTrackingConfig config) {
   exists(FlowFeature feature | feature = config.getAFeature() |
     feature instanceof FeatureHasSourceCallContext or
     feature instanceof FeatureEqualSourceSinkCallContext
   )
 }
 
-private predicate hasSinkCallCtx(Configuration config) {
+private predicate hasSinkCallCtx(MyTaintTrackingConfig config) {
   exists(FlowFeature feature | feature = config.getAFeature() |
     feature instanceof FeatureHasSinkCallContext or
     feature instanceof FeatureEqualSourceSinkCallContext
   )
 }
 
-private module Stage1 {
+module Stage1 {
   class ApApprox = Unit;
 
   class Ap = Unit;
@@ -612,7 +649,7 @@ private module Stage1 {
    * The Boolean `cc` records whether the node is reached through an
    * argument in a call.
    */
-  predicate fwdFlow(NodeEx node, Cc cc, Configuration config) {
+  predicate fwdFlow(NodeEx node, Cc cc, MyTaintTrackingConfig config) {
     sourceNode(node, _, config) and
     if hasSourceCallCtx(config) then cc = true else cc = false
     or
@@ -637,8 +674,8 @@ private module Stage1 {
     or
     // read
     exists(ContentSet c |
-      fwdFlowReadSet(c, node, cc, config) and
-      fwdFlowConsCandSet(c, _, config)
+      fwdFlowReadSet(c, node, cc, config) 
+      // and fwdFlowConsCandSet(c, _, config)
     )
     or
     // flow into a callable
@@ -647,6 +684,17 @@ private module Stage1 {
       viableParamArgEx(_, node, arg) and
       cc = true and
       not fullBarrier(node, config)
+
+      or
+      (
+        fwdFlow(arg, _, config)
+        and exists( NativeCall nc, DataFlowCallable dc|
+          nc.getSrc().getAnArgument() = arg.asNode().asExpr()
+          and node.asNode().(ParamNode).isParameterOf(dc, -1)
+          and dc.asCallable() = nc.getDst()
+          and cc = true
+        )
+      )
     )
     or
     // flow out of a callable
@@ -659,10 +707,10 @@ private module Stage1 {
     )
   }
 
-  private predicate fwdFlow(NodeEx node, Configuration config) { fwdFlow(node, _, config) }
+  private predicate fwdFlow(NodeEx node, MyTaintTrackingConfig config) { fwdFlow(node, _, config) }
 
   pragma[nomagic]
-  private predicate fwdFlowReadSet(ContentSet c, NodeEx node, Cc cc, Configuration config) {
+  private predicate fwdFlowReadSet(ContentSet c, NodeEx node, Cc cc, MyTaintTrackingConfig config) {
     exists(NodeEx mid |
       fwdFlow(mid, cc, config) and
       readSet(mid, c, node, config)
@@ -673,7 +721,7 @@ private module Stage1 {
    * Holds if `c` is the target of a store in the flow covered by `fwdFlow`.
    */
   pragma[nomagic]
-  private predicate fwdFlowConsCand(Content c, Configuration config) {
+  private predicate fwdFlowConsCand(Content c, MyTaintTrackingConfig config) {
     exists(NodeEx mid, NodeEx node, TypedContent tc |
       not fullBarrier(node, config) and
       useFieldFlow(config) and
@@ -688,13 +736,13 @@ private module Stage1 {
    * into `c`, in the flow covered by `fwdFlow`.
    */
   pragma[nomagic]
-  private predicate fwdFlowConsCandSet(ContentSet cs, Content c, Configuration config) {
+  private predicate fwdFlowConsCandSet(ContentSet cs, Content c, MyTaintTrackingConfig config) {
     fwdFlowConsCand(c, config) and
     c = cs.getAReadContent()
   }
 
   pragma[nomagic]
-  private predicate fwdFlowReturnPosition(ReturnPosition pos, Cc cc, Configuration config) {
+  private predicate fwdFlowReturnPosition(ReturnPosition pos, Cc cc, MyTaintTrackingConfig config) {
     exists(RetNodeEx ret |
       fwdFlow(ret, cc, config) and
       ret.getReturnPosition() = pos
@@ -702,7 +750,7 @@ private module Stage1 {
   }
 
   pragma[nomagic]
-  private predicate fwdFlowOut(DataFlowCall call, NodeEx out, Cc cc, Configuration config) {
+  private predicate fwdFlowOut(DataFlowCall call, NodeEx out, Cc cc, MyTaintTrackingConfig config) {
     exists(ReturnPosition pos |
       fwdFlowReturnPosition(pos, cc, config) and
       viableReturnPosOutEx(call, pos, out) and
@@ -711,7 +759,7 @@ private module Stage1 {
   }
 
   pragma[nomagic]
-  private predicate fwdFlowOutFromArg(DataFlowCall call, NodeEx out, Configuration config) {
+  private predicate fwdFlowOutFromArg(DataFlowCall call, NodeEx out, MyTaintTrackingConfig config) {
     fwdFlowOut(call, out, true, config)
   }
 
@@ -719,14 +767,14 @@ private module Stage1 {
    * Holds if an argument to `call` is reached in the flow covered by `fwdFlow`.
    */
   pragma[nomagic]
-  private predicate fwdFlowIsEntered(DataFlowCall call, Cc cc, Configuration config) {
+  private predicate fwdFlowIsEntered(DataFlowCall call, Cc cc, MyTaintTrackingConfig config) {
     exists(ArgNodeEx arg |
       fwdFlow(arg, cc, config) and
       viableParamArgEx(call, _, arg)
     )
   }
 
-  private predicate stateStepFwd(FlowState state1, FlowState state2, Configuration config) {
+  private predicate stateStepFwd(FlowState state1, FlowState state2, MyTaintTrackingConfig config) {
     exists(NodeEx node1 |
       additionalLocalStateStep(node1, state1, _, state2, config) or
       additionalJumpStateStep(node1, state1, _, state2, config)
@@ -735,7 +783,7 @@ private module Stage1 {
     )
   }
 
-  private predicate fwdFlowState(FlowState state, Configuration config) {
+  private predicate fwdFlowState(FlowState state, MyTaintTrackingConfig config) {
     sourceNode(_, state, config)
     or
     exists(FlowState state0 |
@@ -752,13 +800,13 @@ private module Stage1 {
    * the enclosing callable in order to reach a sink.
    */
   pragma[nomagic]
-  predicate revFlow(NodeEx node, boolean toReturn, Configuration config) {
+  predicate revFlow(NodeEx node, boolean toReturn, MyTaintTrackingConfig config) {
     revFlow0(node, toReturn, config) and
     fwdFlow(node, config)
   }
 
   pragma[nomagic]
-  private predicate revFlow0(NodeEx node, boolean toReturn, Configuration config) {
+  private predicate revFlow0(NodeEx node, boolean toReturn, MyTaintTrackingConfig config) {
     exists(FlowState state |
       fwdFlow(node, pragma[only_bind_into](config)) and
       sinkNode(node, state, config) and
@@ -780,14 +828,14 @@ private module Stage1 {
     or
     // store
     exists(Content c |
-      revFlowStore(c, node, toReturn, config) and
-      revFlowConsCand(c, config)
+      revFlowStore(c, node, toReturn, config) 
+      and revFlowConsCand(c, config)
     )
     or
     // read
     exists(NodeEx mid, ContentSet c |
       readSet(node, c, mid, config) and
-      fwdFlowConsCandSet(c, _, pragma[only_bind_into](config)) and
+      // fwdFlowConsCandSet(c, _, pragma[only_bind_into](config)) and
       revFlow(mid, toReturn, pragma[only_bind_into](config))
     )
     or
@@ -798,6 +846,14 @@ private module Stage1 {
       or
       revFlowInToReturn(call, node, config) and
       revFlowIsReturned(call, toReturn, config)
+      // 
+      or exists( NativeCall nc, DataFlowCallable dc, ParamNodeEx p|
+        revFlow(p, toReturn, config) and
+        nc.getSrc() = call.asCall()
+        and nc.getSrc().getAnArgument() = node.asNode().asExpr()
+        and p.isParameterOf(dc, -1)
+        and dc.asCallable() = nc.getDst()
+      )
     )
     or
     // flow out of a callable
@@ -812,7 +868,7 @@ private module Stage1 {
    * Holds if `c` is the target of a read in the flow covered by `revFlow`.
    */
   pragma[nomagic]
-  private predicate revFlowConsCand(Content c, Configuration config) {
+  private predicate revFlowConsCand(Content c, MyTaintTrackingConfig config) {
     exists(NodeEx mid, NodeEx node, ContentSet cs |
       fwdFlow(node, pragma[only_bind_into](config)) and
       readSet(node, cs, mid, config) and
@@ -822,7 +878,7 @@ private module Stage1 {
   }
 
   pragma[nomagic]
-  private predicate revFlowStore(Content c, NodeEx node, boolean toReturn, Configuration config) {
+  private predicate revFlowStore(Content c, NodeEx node, boolean toReturn, MyTaintTrackingConfig config) {
     exists(NodeEx mid, TypedContent tc |
       revFlow(mid, toReturn, pragma[only_bind_into](config)) and
       fwdFlowConsCand(c, pragma[only_bind_into](config)) and
@@ -836,21 +892,21 @@ private module Stage1 {
    * by `revFlow`.
    */
   pragma[nomagic]
-  predicate revFlowIsReadAndStored(Content c, Configuration conf) {
+  predicate revFlowIsReadAndStored(Content c, MyTaintTrackingConfig conf) {
     revFlowConsCand(c, conf) and
     revFlowStore(c, _, _, conf)
   }
 
   pragma[nomagic]
   predicate viableReturnPosOutNodeCandFwd1(
-    DataFlowCall call, ReturnPosition pos, NodeEx out, Configuration config
+    DataFlowCall call, ReturnPosition pos, NodeEx out, MyTaintTrackingConfig config
   ) {
     fwdFlowReturnPosition(pos, _, config) and
     viableReturnPosOutEx(call, pos, out)
   }
 
   pragma[nomagic]
-  private predicate revFlowOut(ReturnPosition pos, Configuration config) {
+  private predicate revFlowOut(ReturnPosition pos, MyTaintTrackingConfig config) {
     exists(DataFlowCall call, NodeEx out |
       revFlow(out, _, config) and
       viableReturnPosOutNodeCandFwd1(call, pos, out, config)
@@ -859,7 +915,7 @@ private module Stage1 {
 
   pragma[nomagic]
   predicate viableParamArgNodeCandFwd1(
-    DataFlowCall call, ParamNodeEx p, ArgNodeEx arg, Configuration config
+    DataFlowCall call, ParamNodeEx p, ArgNodeEx arg, MyTaintTrackingConfig config
   ) {
     viableParamArgEx(call, p, arg) and
     fwdFlow(arg, config)
@@ -867,7 +923,7 @@ private module Stage1 {
 
   pragma[nomagic]
   private predicate revFlowIn(
-    DataFlowCall call, ArgNodeEx arg, boolean toReturn, Configuration config
+    DataFlowCall call, ArgNodeEx arg, boolean toReturn, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p |
       revFlow(p, toReturn, config) and
@@ -876,7 +932,7 @@ private module Stage1 {
   }
 
   pragma[nomagic]
-  private predicate revFlowInToReturn(DataFlowCall call, ArgNodeEx arg, Configuration config) {
+  private predicate revFlowInToReturn(DataFlowCall call, ArgNodeEx arg, MyTaintTrackingConfig config) {
     revFlowIn(call, arg, true, config)
   }
 
@@ -886,14 +942,14 @@ private module Stage1 {
    * reaching an argument of `call`.
    */
   pragma[nomagic]
-  private predicate revFlowIsReturned(DataFlowCall call, boolean toReturn, Configuration config) {
+  private predicate revFlowIsReturned(DataFlowCall call, boolean toReturn, MyTaintTrackingConfig config) {
     exists(NodeEx out |
       revFlow(out, toReturn, config) and
       fwdFlowOutFromArg(call, out, config)
     )
   }
 
-  private predicate stateStepRev(FlowState state1, FlowState state2, Configuration config) {
+  private predicate stateStepRev(FlowState state1, FlowState state2, MyTaintTrackingConfig config) {
     exists(NodeEx node1, NodeEx node2 |
       additionalLocalStateStep(node1, state1, node2, state2, config) or
       additionalJumpStateStep(node1, state1, node2, state2, config)
@@ -905,7 +961,7 @@ private module Stage1 {
     )
   }
 
-  predicate revFlowState(FlowState state, Configuration config) {
+  predicate revFlowState(FlowState state, MyTaintTrackingConfig config) {
     exists(NodeEx node |
       sinkNode(node, state, config) and
       revFlow(node, _, pragma[only_bind_into](config)) and
@@ -921,7 +977,7 @@ private module Stage1 {
   pragma[nomagic]
   predicate storeStepCand(
     NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, DataFlowType contentType,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(Content c |
       revFlowIsReadAndStored(c, pragma[only_bind_into](config)) and
@@ -933,18 +989,18 @@ private module Stage1 {
   }
 
   pragma[nomagic]
-  predicate readStepCand(NodeEx n1, Content c, NodeEx n2, Configuration config) {
+  predicate readStepCand(NodeEx n1, Content c, NodeEx n2, MyTaintTrackingConfig config) {
     revFlowIsReadAndStored(c, pragma[only_bind_into](config)) and
     read(n1, c, n2, pragma[only_bind_into](config)) and
     revFlow(n2, pragma[only_bind_into](config))
   }
 
   pragma[nomagic]
-  predicate revFlow(NodeEx node, Configuration config) { revFlow(node, _, config) }
+  predicate revFlow(NodeEx node, MyTaintTrackingConfig config) { revFlow(node, _, config) }
 
   bindingset[node, state, config]
   predicate revFlow(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     revFlow(node, toReturn, pragma[only_bind_into](config)) and
     exists(state) and
@@ -952,7 +1008,7 @@ private module Stage1 {
     exists(ap)
   }
 
-  private predicate throughFlowNodeCand(NodeEx node, Configuration config) {
+  private predicate throughFlowNodeCand(NodeEx node, MyTaintTrackingConfig config) {
     revFlow(node, true, config) and
     fwdFlow(node, true, config) and
     not inBarrier(node, config) and
@@ -962,7 +1018,7 @@ private module Stage1 {
   /** Holds if flow may return from `callable`. */
   pragma[nomagic]
   private predicate returnFlowCallableNodeCand(
-    DataFlowCallable callable, ReturnKindExt kind, Configuration config
+    DataFlowCallable callable, ReturnKindExt kind, MyTaintTrackingConfig config
   ) {
     exists(RetNodeEx ret |
       throughFlowNodeCand(ret, config) and
@@ -976,7 +1032,7 @@ private module Stage1 {
    * candidate for the origin of a summary.
    */
   pragma[nomagic]
-  predicate parameterMayFlowThrough(ParamNodeEx p, DataFlowCallable c, Ap ap, Configuration config) {
+  predicate parameterMayFlowThrough(ParamNodeEx p, DataFlowCallable c, Ap ap, MyTaintTrackingConfig config) {
     exists(ReturnKindExt kind |
       throughFlowNodeCand(p, config) and
       returnFlowCallableNodeCand(c, kind, config) and
@@ -992,7 +1048,7 @@ private module Stage1 {
   }
 
   pragma[nomagic]
-  predicate callMayFlowThroughRev(DataFlowCall call, Configuration config) {
+  predicate callMayFlowThroughRev(DataFlowCall call, MyTaintTrackingConfig config) {
     exists(ArgNodeEx arg, boolean toReturn |
       revFlow(arg, toReturn, config) and
       revFlowInToReturn(call, arg, config) and
@@ -1001,7 +1057,7 @@ private module Stage1 {
   }
 
   predicate stats(
-    boolean fwd, int nodes, int fields, int conscand, int states, int tuples, Configuration config
+    boolean fwd, int nodes, int fields, int conscand, int states, int tuples, MyTaintTrackingConfig config
   ) {
     fwd = true and
     nodes = count(NodeEx node | fwdFlow(node, config)) and
@@ -1021,20 +1077,20 @@ private module Stage1 {
 }
 
 pragma[noinline]
-private predicate localFlowStepNodeCand1(NodeEx node1, NodeEx node2, Configuration config) {
+private predicate localFlowStepNodeCand1(NodeEx node1, NodeEx node2, MyTaintTrackingConfig config) {
   Stage1::revFlow(node2, config) and
   localFlowStep(node1, node2, config)
 }
 
 pragma[noinline]
-private predicate additionalLocalFlowStepNodeCand1(NodeEx node1, NodeEx node2, Configuration config) {
+private predicate additionalLocalFlowStepNodeCand1(NodeEx node1, NodeEx node2, MyTaintTrackingConfig config) {
   Stage1::revFlow(node2, config) and
   additionalLocalFlowStep(node1, node2, config)
 }
 
 pragma[nomagic]
 private predicate viableReturnPosOutNodeCand1(
-  DataFlowCall call, ReturnPosition pos, NodeEx out, Configuration config
+  DataFlowCall call, ReturnPosition pos, NodeEx out, MyTaintTrackingConfig config
 ) {
   Stage1::revFlow(out, config) and
   Stage1::viableReturnPosOutNodeCandFwd1(call, pos, out, config)
@@ -1047,7 +1103,7 @@ private predicate viableReturnPosOutNodeCand1(
  */
 pragma[nomagic]
 private predicate flowOutOfCallNodeCand1(
-  DataFlowCall call, RetNodeEx ret, NodeEx out, Configuration config
+  DataFlowCall call, RetNodeEx ret, NodeEx out, MyTaintTrackingConfig config
 ) {
   viableReturnPosOutNodeCand1(call, ret.getReturnPosition(), out, config) and
   Stage1::revFlow(ret, config) and
@@ -1057,7 +1113,7 @@ private predicate flowOutOfCallNodeCand1(
 
 pragma[nomagic]
 private predicate viableParamArgNodeCand1(
-  DataFlowCall call, ParamNodeEx p, ArgNodeEx arg, Configuration config
+  DataFlowCall call, ParamNodeEx p, ArgNodeEx arg, MyTaintTrackingConfig config
 ) {
   Stage1::viableParamArgNodeCandFwd1(call, p, arg, config) and
   Stage1::revFlow(arg, config)
@@ -1069,7 +1125,7 @@ private predicate viableParamArgNodeCand1(
  */
 pragma[nomagic]
 private predicate flowIntoCallNodeCand1(
-  DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, Configuration config
+  DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, MyTaintTrackingConfig config
 ) {
   viableParamArgNodeCand1(call, p, arg, config) and
   Stage1::revFlow(p, config) and
@@ -1082,7 +1138,7 @@ private predicate flowIntoCallNodeCand1(
  * edge in the graph of paths between sources and sinks that ignores call
  * contexts.
  */
-private int branch(NodeEx n1, Configuration conf) {
+private int branch(NodeEx n1, MyTaintTrackingConfig conf) {
   result =
     strictcount(NodeEx n |
       flowOutOfCallNodeCand1(_, n1, n, conf) or flowIntoCallNodeCand1(_, n1, n, conf)
@@ -1094,7 +1150,7 @@ private int branch(NodeEx n1, Configuration conf) {
  * edge in the graph of paths between sources and sinks that ignores call
  * contexts.
  */
-private int join(NodeEx n2, Configuration conf) {
+private int join(NodeEx n2, MyTaintTrackingConfig conf) {
   result =
     strictcount(NodeEx n |
       flowOutOfCallNodeCand1(_, n, n2, conf) or flowIntoCallNodeCand1(_, n, n2, conf)
@@ -1110,7 +1166,7 @@ private int join(NodeEx n2, Configuration conf) {
  */
 pragma[nomagic]
 private predicate flowOutOfCallNodeCand1(
-  DataFlowCall call, RetNodeEx ret, NodeEx out, boolean allowsFieldFlow, Configuration config
+  DataFlowCall call, RetNodeEx ret, NodeEx out, boolean allowsFieldFlow, MyTaintTrackingConfig config
 ) {
   flowOutOfCallNodeCand1(call, ret, out, config) and
   exists(int b, int j |
@@ -1129,7 +1185,7 @@ private predicate flowOutOfCallNodeCand1(
  */
 pragma[nomagic]
 private predicate flowIntoCallNodeCand1(
-  DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, boolean allowsFieldFlow, Configuration config
+  DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, boolean allowsFieldFlow, MyTaintTrackingConfig config
 ) {
   flowIntoCallNodeCand1(call, arg, p, config) and
   exists(int b, int j |
@@ -1141,7 +1197,7 @@ private predicate flowIntoCallNodeCand1(
   )
 }
 
-private module Stage2 {
+module Stage2 {
   module PrevStage = Stage1;
 
   class ApApprox = PrevStage::Ap;
@@ -1202,7 +1258,7 @@ private module Stage2 {
   bindingset[node2, state2, config]
   private predicate localStep(
     NodeEx node1, FlowState state1, NodeEx node2, FlowState state2, boolean preservesValue,
-    ApNil ap, Configuration config, LocalCc lcc
+    ApNil ap, MyTaintTrackingConfig config, LocalCc lcc
   ) {
     (
       preservesValue = true and
@@ -1225,7 +1281,7 @@ private module Stage2 {
   private predicate flowIntoCall = flowIntoCallNodeCand1/5;
 
   pragma[nomagic]
-  private predicate expectsContentCand(NodeEx node, Configuration config) {
+  private predicate expectsContentCand(NodeEx node, MyTaintTrackingConfig config) {
     exists(Content c |
       PrevStage::revFlow(node, pragma[only_bind_into](config)) and
       PrevStage::revFlowIsReadAndStored(c, pragma[only_bind_into](config)) and
@@ -1234,7 +1290,7 @@ private module Stage2 {
   }
 
   bindingset[node, state, ap, config]
-  private predicate filter(NodeEx node, FlowState state, Ap ap, Configuration config) {
+  private predicate filter(NodeEx node, FlowState state, Ap ap, MyTaintTrackingConfig config) {
     PrevStage::revFlowState(state, pragma[only_bind_into](config)) and
     exists(ap) and
     not stateBarrier(node, state, config) and
@@ -1251,7 +1307,7 @@ private module Stage2 {
 
   /* Begin: Stage 2 logic. */
   bindingset[node, state, config]
-  private predicate flowCand(NodeEx node, FlowState state, ApApprox apa, Configuration config) {
+  private predicate flowCand(NodeEx node, FlowState state, ApApprox apa, MyTaintTrackingConfig config) {
     PrevStage::revFlow(node, state, _, _, apa, config)
   }
 
@@ -1263,7 +1319,7 @@ private module Stage2 {
   pragma[nomagic]
   private predicate flowThroughOutOfCall(
     DataFlowCall call, CcCall ccc, RetNodeEx ret, NodeEx out, boolean allowsFieldFlow,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     flowOutOfCall(call, ret, out, allowsFieldFlow, pragma[only_bind_into](config)) and
     PrevStage::callMayFlowThroughRev(call, pragma[only_bind_into](config)) and
@@ -1281,7 +1337,7 @@ private module Stage2 {
    * argument.
    */
   pragma[nomagic]
-  predicate fwdFlow(NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, Configuration config) {
+  predicate fwdFlow(NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config) {
     fwdFlow0(node, state, cc, argAp, ap, config) and
     flowCand(node, state, unbindApa(getApprox(ap)), config) and
     filter(node, state, ap, config)
@@ -1289,7 +1345,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate fwdFlow0(
-    NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     sourceNode(node, state, config) and
     (if hasSourceCallCtx(config) then cc = ccSomeCall() else cc = ccNone()) and
@@ -1363,7 +1419,7 @@ private module Stage2 {
   pragma[nomagic]
   private predicate fwdFlowStore(
     NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, FlowState state, Cc cc, ApOption argAp,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(DataFlowType contentType |
       fwdFlow(node1, state, cc, argAp, ap1, config) and
@@ -1377,7 +1433,7 @@ private module Stage2 {
    * resulting in access path `cons`.
    */
   pragma[nomagic]
-  private predicate fwdFlowConsCand(Ap cons, Content c, Ap tail, Configuration config) {
+  private predicate fwdFlowConsCand(Ap cons, Content c, Ap tail, MyTaintTrackingConfig config) {
     exists(TypedContent tc |
       fwdFlowStore(_, tail, tc, _, _, _, _, config) and
       tc.getContent() = c and
@@ -1388,7 +1444,7 @@ private module Stage2 {
   pragma[nomagic]
   private predicate fwdFlowRead(
     Ap ap, Content c, NodeEx node1, NodeEx node2, FlowState state, Cc cc, ApOption argAp,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     fwdFlow(node1, state, cc, argAp, ap, config) and
     PrevStage::readStepCand(node1, c, node2, config) and
@@ -1398,7 +1454,7 @@ private module Stage2 {
   pragma[nomagic]
   private predicate fwdFlowIn(
     DataFlowCall call, ParamNodeEx p, FlowState state, Cc outercc, Cc innercc, ApOption argAp,
-    Ap ap, Configuration config
+    Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ArgNodeEx arg, boolean allowsFieldFlow |
       fwdFlow(arg, state, outercc, argAp, ap, config) and
@@ -1410,7 +1466,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate fwdFlowOutNotFromArg(
-    NodeEx out, FlowState state, Cc ccOut, ApOption argAp, Ap ap, Configuration config
+    NodeEx out, FlowState state, Cc ccOut, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(
       DataFlowCall call, RetNodeEx ret, boolean allowsFieldFlow, CcNoCall innercc,
@@ -1426,7 +1482,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate fwdFlowOutFromArg(
-    DataFlowCall call, NodeEx out, FlowState state, Ap argAp, Ap ap, Configuration config
+    DataFlowCall call, NodeEx out, FlowState state, Ap argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(RetNodeEx ret, boolean allowsFieldFlow, CcCall ccc |
       fwdFlow(ret, state, ccc, apSome(argAp), ap, config) and
@@ -1441,7 +1497,7 @@ private module Stage2 {
    */
   pragma[nomagic]
   private predicate fwdFlowIsEntered(
-    DataFlowCall call, Cc cc, ApOption argAp, Ap ap, Configuration config
+    DataFlowCall call, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p |
       fwdFlowIn(call, p, _, cc, _, argAp, ap, config) and
@@ -1451,7 +1507,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate storeStepFwd(
-    NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, Ap ap2, Configuration config
+    NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, Ap ap2, MyTaintTrackingConfig config
   ) {
     fwdFlowStore(node1, ap1, tc, node2, _, _, _, config) and
     ap2 = apCons(tc, ap1) and
@@ -1459,14 +1515,14 @@ private module Stage2 {
   }
 
   private predicate readStepFwd(
-    NodeEx n1, Ap ap1, Content c, NodeEx n2, Ap ap2, Configuration config
+    NodeEx n1, Ap ap1, Content c, NodeEx n2, Ap ap2, MyTaintTrackingConfig config
   ) {
     fwdFlowRead(ap1, c, n1, n2, _, _, _, config) and
     fwdFlowConsCand(ap1, c, ap2, config)
   }
 
   pragma[nomagic]
-  private predicate callMayFlowThroughFwd(DataFlowCall call, Configuration config) {
+  private predicate callMayFlowThroughFwd(DataFlowCall call, MyTaintTrackingConfig config) {
     exists(Ap argAp0, NodeEx out, FlowState state, Cc cc, ApOption argAp, Ap ap |
       fwdFlow(out, state, pragma[only_bind_into](cc), pragma[only_bind_into](argAp), ap,
         pragma[only_bind_into](config)) and
@@ -1479,7 +1535,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate flowThroughIntoCall(
-    DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, boolean allowsFieldFlow, Configuration config
+    DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, boolean allowsFieldFlow, MyTaintTrackingConfig config
   ) {
     flowIntoCall(call, arg, p, allowsFieldFlow, config) and
     fwdFlow(arg, _, _, _, _, pragma[only_bind_into](config)) and
@@ -1489,7 +1545,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate returnNodeMayFlowThrough(
-    RetNodeEx ret, FlowState state, Ap ap, Configuration config
+    RetNodeEx ret, FlowState state, Ap ap, MyTaintTrackingConfig config
   ) {
     fwdFlow(ret, state, any(CcCall ccc), apSome(_), ap, config)
   }
@@ -1504,7 +1560,7 @@ private module Stage2 {
    */
   pragma[nomagic]
   predicate revFlow(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     revFlow0(node, state, toReturn, returnAp, ap, config) and
     fwdFlow(node, state, _, _, ap, config)
@@ -1512,7 +1568,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate revFlow0(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     fwdFlow(node, state, _, _, ap, config) and
     sinkNode(node, state, config) and
@@ -1590,7 +1646,7 @@ private module Stage2 {
   pragma[nomagic]
   private predicate revFlowStore(
     Ap ap0, Content c, Ap ap, NodeEx node, FlowState state, TypedContent tc, NodeEx mid,
-    boolean toReturn, ApOption returnAp, Configuration config
+    boolean toReturn, ApOption returnAp, MyTaintTrackingConfig config
   ) {
     revFlow(mid, state, toReturn, returnAp, ap0, config) and
     storeStepFwd(node, ap, tc, mid, ap0, config) and
@@ -1602,7 +1658,7 @@ private module Stage2 {
    * resulting in access path `cons`.
    */
   pragma[nomagic]
-  private predicate revFlowConsCand(Ap cons, Content c, Ap tail, Configuration config) {
+  private predicate revFlowConsCand(Ap cons, Content c, Ap tail, MyTaintTrackingConfig config) {
     exists(NodeEx mid, Ap tail0 |
       revFlow(mid, _, _, _, tail, config) and
       tail = pragma[only_bind_into](tail0) and
@@ -1613,7 +1669,7 @@ private module Stage2 {
   pragma[nomagic]
   private predicate revFlowOut(
     DataFlowCall call, RetNodeEx ret, FlowState state, boolean toReturn, ApOption returnAp, Ap ap,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(NodeEx out, boolean allowsFieldFlow |
       revFlow(out, state, toReturn, returnAp, ap, config) and
@@ -1624,7 +1680,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate revFlowInNotToReturn(
-    ArgNodeEx arg, FlowState state, ApOption returnAp, Ap ap, Configuration config
+    ArgNodeEx arg, FlowState state, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p, boolean allowsFieldFlow |
       revFlow(p, state, false, returnAp, ap, config) and
@@ -1635,7 +1691,7 @@ private module Stage2 {
 
   pragma[nomagic]
   private predicate revFlowInToReturn(
-    DataFlowCall call, ArgNodeEx arg, FlowState state, Ap returnAp, Ap ap, Configuration config
+    DataFlowCall call, ArgNodeEx arg, FlowState state, Ap returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p, boolean allowsFieldFlow |
       revFlow(p, state, true, apSome(returnAp), ap, config) and
@@ -1651,7 +1707,7 @@ private module Stage2 {
    */
   pragma[nomagic]
   private predicate revFlowIsReturned(
-    DataFlowCall call, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    DataFlowCall call, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(RetNodeEx ret, FlowState state, CcCall ccc |
       revFlowOut(call, ret, state, toReturn, returnAp, ap, config) and
@@ -1663,7 +1719,7 @@ private module Stage2 {
   pragma[nomagic]
   predicate storeStepCand(
     NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, DataFlowType contentType,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(Ap ap2, Content c |
       PrevStage::storeStepCand(node1, _, tc, node2, contentType, config) and
@@ -1672,7 +1728,7 @@ private module Stage2 {
     )
   }
 
-  predicate readStepCand(NodeEx node1, Content c, NodeEx node2, Configuration config) {
+  predicate readStepCand(NodeEx node1, Content c, NodeEx node2, MyTaintTrackingConfig config) {
     exists(Ap ap1, Ap ap2 |
       revFlow(node2, _, _, _, pragma[only_bind_into](ap2), pragma[only_bind_into](config)) and
       readStepFwd(node1, ap1, c, node2, ap2, config) and
@@ -1681,34 +1737,34 @@ private module Stage2 {
     )
   }
 
-  predicate revFlow(NodeEx node, FlowState state, Configuration config) {
+  predicate revFlow(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
     revFlow(node, state, _, _, _, config)
   }
 
   pragma[nomagic]
-  predicate revFlow(NodeEx node, Configuration config) { revFlow(node, _, _, _, _, config) }
+  predicate revFlow(NodeEx node, MyTaintTrackingConfig config) { revFlow(node, _, _, _, _, config) }
 
   // use an alias as a workaround for bad functionality-induced joins
   pragma[nomagic]
-  predicate revFlowAlias(NodeEx node, Configuration config) { revFlow(node, _, _, _, _, config) }
+  predicate revFlowAlias(NodeEx node, MyTaintTrackingConfig config) { revFlow(node, _, _, _, _, config) }
 
   // use an alias as a workaround for bad functionality-induced joins
   pragma[nomagic]
   predicate revFlowAlias(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     revFlow(node, state, toReturn, returnAp, ap, config)
   }
 
-  private predicate fwdConsCand(TypedContent tc, Ap ap, Configuration config) {
+  private predicate fwdConsCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     storeStepFwd(_, ap, tc, _, _, config)
   }
 
-  private predicate revConsCand(TypedContent tc, Ap ap, Configuration config) {
+  private predicate revConsCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     storeStepCand(_, ap, tc, _, _, config)
   }
 
-  private predicate validAp(Ap ap, Configuration config) {
+  private predicate validAp(Ap ap, MyTaintTrackingConfig config) {
     revFlow(_, _, _, _, ap, config) and ap instanceof ApNil
     or
     exists(TypedContent head, Ap tail |
@@ -1717,20 +1773,20 @@ private module Stage2 {
     )
   }
 
-  predicate consCand(TypedContent tc, Ap ap, Configuration config) {
+  predicate consCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     revConsCand(tc, ap, config) and
     validAp(ap, config)
   }
 
   pragma[noinline]
   private predicate parameterFlow(
-    ParamNodeEx p, Ap ap, Ap ap0, DataFlowCallable c, Configuration config
+    ParamNodeEx p, Ap ap, Ap ap0, DataFlowCallable c, MyTaintTrackingConfig config
   ) {
     revFlow(p, _, true, apSome(ap0), ap, config) and
     c = p.getEnclosingCallable()
   }
 
-  predicate parameterMayFlowThrough(ParamNodeEx p, DataFlowCallable c, Ap ap, Configuration config) {
+  predicate parameterMayFlowThrough(ParamNodeEx p, DataFlowCallable c, Ap ap, MyTaintTrackingConfig config) {
     exists(RetNodeEx ret, FlowState state, Ap ap0, ReturnKindExt kind, ParameterPosition pos |
       parameterFlow(p, ap, ap0, c, config) and
       c = ret.getEnclosingCallable() and
@@ -1749,7 +1805,7 @@ private module Stage2 {
   }
 
   pragma[nomagic]
-  predicate callMayFlowThroughRev(DataFlowCall call, Configuration config) {
+  predicate callMayFlowThroughRev(DataFlowCall call, MyTaintTrackingConfig config) {
     exists(
       Ap returnAp0, ArgNodeEx arg, FlowState state, boolean toReturn, ApOption returnAp, Ap ap
     |
@@ -1760,7 +1816,7 @@ private module Stage2 {
   }
 
   predicate stats(
-    boolean fwd, int nodes, int fields, int conscand, int states, int tuples, Configuration config
+    boolean fwd, int nodes, int fields, int conscand, int states, int tuples, MyTaintTrackingConfig config
   ) {
     fwd = true and
     nodes = count(NodeEx node | fwdFlow(node, _, _, _, _, config)) and
@@ -1787,7 +1843,7 @@ private module Stage2 {
 
 pragma[nomagic]
 private predicate flowOutOfCallNodeCand2(
-  DataFlowCall call, RetNodeEx node1, NodeEx node2, boolean allowsFieldFlow, Configuration config
+  DataFlowCall call, RetNodeEx node1, NodeEx node2, boolean allowsFieldFlow, MyTaintTrackingConfig config
 ) {
   flowOutOfCallNodeCand1(call, node1, node2, allowsFieldFlow, config) and
   Stage2::revFlow(node2, pragma[only_bind_into](config)) and
@@ -1797,7 +1853,7 @@ private predicate flowOutOfCallNodeCand2(
 pragma[nomagic]
 private predicate flowIntoCallNodeCand2(
   DataFlowCall call, ArgNodeEx node1, ParamNodeEx node2, boolean allowsFieldFlow,
-  Configuration config
+  MyTaintTrackingConfig config
 ) {
   flowIntoCallNodeCand1(call, node1, node2, allowsFieldFlow, config) and
   Stage2::revFlow(node2, pragma[only_bind_into](config)) and
@@ -1821,7 +1877,7 @@ private module LocalFlowBigStep {
    * Holds if `node` can be the first node in a maximal subsequence of local
    * flow steps in a dataflow path.
    */
-  private predicate localFlowEntry(NodeEx node, FlowState state, Configuration config) {
+  private predicate localFlowEntry(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
     Stage2::revFlow(node, state, config) and
     (
       sourceNode(node, state, config)
@@ -1853,7 +1909,7 @@ private module LocalFlowBigStep {
    * Holds if `node` can be the last node in a maximal subsequence of local
    * flow steps in a dataflow path.
    */
-  private predicate localFlowExit(NodeEx node, FlowState state, Configuration config) {
+  private predicate localFlowExit(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
     exists(NodeEx next | Stage2::revFlow(next, state, config) |
       jumpStep(node, next, config) or
       additionalJumpStep(node, next, config) or
@@ -1878,7 +1934,7 @@ private module LocalFlowBigStep {
 
   pragma[noinline]
   private predicate additionalLocalFlowStepNodeCand2(
-    NodeEx node1, FlowState state1, NodeEx node2, FlowState state2, Configuration config
+    NodeEx node1, FlowState state1, NodeEx node2, FlowState state2, MyTaintTrackingConfig config
   ) {
     additionalLocalFlowStepNodeCand1(node1, node2, config) and
     state1 = state2 and
@@ -1902,7 +1958,7 @@ private module LocalFlowBigStep {
   pragma[nomagic]
   private predicate localFlowStepPlus(
     NodeEx node1, FlowState state, NodeEx node2, boolean preservesValue, DataFlowType t,
-    Configuration config, LocalCallContext cc
+    MyTaintTrackingConfig config, LocalCallContext cc
   ) {
     not isUnreachableInCallCached(node2.asNode(), cc.(LocalCallContextSpecificCall).getCall()) and
     (
@@ -1946,7 +2002,7 @@ private module LocalFlowBigStep {
   pragma[nomagic]
   predicate localFlowBigStep(
     NodeEx node1, FlowState state1, NodeEx node2, FlowState state2, boolean preservesValue,
-    AccessPathFrontNil apf, Configuration config, LocalCallContext callContext
+    AccessPathFrontNil apf, MyTaintTrackingConfig config, LocalCallContext callContext
   ) {
     localFlowStepPlus(node1, state1, node2, preservesValue, apf.getType(), config, callContext) and
     localFlowExit(node2, state1, config) and
@@ -2023,7 +2079,7 @@ private module Stage3 {
 
   private predicate localStep(
     NodeEx node1, FlowState state1, NodeEx node2, FlowState state2, boolean preservesValue,
-    ApNil ap, Configuration config, LocalCc lcc
+    ApNil ap, MyTaintTrackingConfig config, LocalCc lcc
   ) {
     localFlowBigStep(node1, state1, node2, state2, preservesValue, ap, config, _) and exists(lcc)
   }
@@ -2033,13 +2089,13 @@ private module Stage3 {
   private predicate flowIntoCall = flowIntoCallNodeCand2/5;
 
   pragma[nomagic]
-  private predicate clearSet(NodeEx node, ContentSet c, Configuration config) {
+  private predicate clearSet(NodeEx node, ContentSet c, MyTaintTrackingConfig config) {
     PrevStage::revFlow(node, config) and
     clearsContentCached(node.asNode(), c)
   }
 
   pragma[nomagic]
-  private predicate clearContent(NodeEx node, Content c, Configuration config) {
+  private predicate clearContent(NodeEx node, Content c, MyTaintTrackingConfig config) {
     exists(ContentSet cs |
       PrevStage::readStepCand(_, pragma[only_bind_into](c), _, pragma[only_bind_into](config)) and
       c = cs.getAReadContent() and
@@ -2048,12 +2104,12 @@ private module Stage3 {
   }
 
   pragma[nomagic]
-  private predicate clear(NodeEx node, Ap ap, Configuration config) {
+  private predicate clear(NodeEx node, Ap ap, MyTaintTrackingConfig config) {
     clearContent(node, ap.getHead().getContent(), config)
   }
 
   pragma[nomagic]
-  private predicate expectsContentCand(NodeEx node, Ap ap, Configuration config) {
+  private predicate expectsContentCand(NodeEx node, Ap ap, MyTaintTrackingConfig config) {
     exists(Content c |
       PrevStage::revFlow(node, pragma[only_bind_into](config)) and
       PrevStage::readStepCand(_, c, _, pragma[only_bind_into](config)) and
@@ -2066,7 +2122,7 @@ private module Stage3 {
   private predicate castingNodeEx(NodeEx node) { node.asNode() instanceof CastingNode }
 
   bindingset[node, state, ap, config]
-  private predicate filter(NodeEx node, FlowState state, Ap ap, Configuration config) {
+  private predicate filter(NodeEx node, FlowState state, Ap ap, MyTaintTrackingConfig config) {
     exists(state) and
     exists(config) and
     not clear(node, ap, config) and
@@ -2087,7 +2143,7 @@ private module Stage3 {
 
   /* Begin: Stage 3 logic. */
   bindingset[node, state, config]
-  private predicate flowCand(NodeEx node, FlowState state, ApApprox apa, Configuration config) {
+  private predicate flowCand(NodeEx node, FlowState state, ApApprox apa, MyTaintTrackingConfig config) {
     PrevStage::revFlow(node, state, _, _, apa, config)
   }
 
@@ -2099,7 +2155,7 @@ private module Stage3 {
   pragma[nomagic]
   private predicate flowThroughOutOfCall(
     DataFlowCall call, CcCall ccc, RetNodeEx ret, NodeEx out, boolean allowsFieldFlow,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     flowOutOfCall(call, ret, out, allowsFieldFlow, pragma[only_bind_into](config)) and
     PrevStage::callMayFlowThroughRev(call, pragma[only_bind_into](config)) and
@@ -2117,7 +2173,7 @@ private module Stage3 {
    * argument.
    */
   pragma[nomagic]
-  predicate fwdFlow(NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, Configuration config) {
+  predicate fwdFlow(NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config) {
     fwdFlow0(node, state, cc, argAp, ap, config) and
     flowCand(node, state, unbindApa(getApprox(ap)), config) and
     filter(node, state, ap, config)
@@ -2125,7 +2181,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate fwdFlow0(
-    NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     sourceNode(node, state, config) and
     (if hasSourceCallCtx(config) then cc = ccSomeCall() else cc = ccNone()) and
@@ -2199,7 +2255,7 @@ private module Stage3 {
   pragma[nomagic]
   private predicate fwdFlowStore(
     NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, FlowState state, Cc cc, ApOption argAp,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(DataFlowType contentType |
       fwdFlow(node1, state, cc, argAp, ap1, config) and
@@ -2213,7 +2269,7 @@ private module Stage3 {
    * resulting in access path `cons`.
    */
   pragma[nomagic]
-  private predicate fwdFlowConsCand(Ap cons, Content c, Ap tail, Configuration config) {
+  private predicate fwdFlowConsCand(Ap cons, Content c, Ap tail, MyTaintTrackingConfig config) {
     exists(TypedContent tc |
       fwdFlowStore(_, tail, tc, _, _, _, _, config) and
       tc.getContent() = c and
@@ -2224,7 +2280,7 @@ private module Stage3 {
   pragma[nomagic]
   private predicate fwdFlowRead(
     Ap ap, Content c, NodeEx node1, NodeEx node2, FlowState state, Cc cc, ApOption argAp,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     fwdFlow(node1, state, cc, argAp, ap, config) and
     PrevStage::readStepCand(node1, c, node2, config) and
@@ -2234,7 +2290,7 @@ private module Stage3 {
   pragma[nomagic]
   private predicate fwdFlowIn(
     DataFlowCall call, ParamNodeEx p, FlowState state, Cc outercc, Cc innercc, ApOption argAp,
-    Ap ap, Configuration config
+    Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ArgNodeEx arg, boolean allowsFieldFlow |
       fwdFlow(arg, state, outercc, argAp, ap, config) and
@@ -2246,7 +2302,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate fwdFlowOutNotFromArg(
-    NodeEx out, FlowState state, Cc ccOut, ApOption argAp, Ap ap, Configuration config
+    NodeEx out, FlowState state, Cc ccOut, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(
       DataFlowCall call, RetNodeEx ret, boolean allowsFieldFlow, CcNoCall innercc,
@@ -2262,7 +2318,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate fwdFlowOutFromArg(
-    DataFlowCall call, NodeEx out, FlowState state, Ap argAp, Ap ap, Configuration config
+    DataFlowCall call, NodeEx out, FlowState state, Ap argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(RetNodeEx ret, boolean allowsFieldFlow, CcCall ccc |
       fwdFlow(ret, state, ccc, apSome(argAp), ap, config) and
@@ -2277,7 +2333,7 @@ private module Stage3 {
    */
   pragma[nomagic]
   private predicate fwdFlowIsEntered(
-    DataFlowCall call, Cc cc, ApOption argAp, Ap ap, Configuration config
+    DataFlowCall call, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p |
       fwdFlowIn(call, p, _, cc, _, argAp, ap, config) and
@@ -2287,7 +2343,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate storeStepFwd(
-    NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, Ap ap2, Configuration config
+    NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, Ap ap2, MyTaintTrackingConfig config
   ) {
     fwdFlowStore(node1, ap1, tc, node2, _, _, _, config) and
     ap2 = apCons(tc, ap1) and
@@ -2295,14 +2351,14 @@ private module Stage3 {
   }
 
   private predicate readStepFwd(
-    NodeEx n1, Ap ap1, Content c, NodeEx n2, Ap ap2, Configuration config
+    NodeEx n1, Ap ap1, Content c, NodeEx n2, Ap ap2, MyTaintTrackingConfig config
   ) {
     fwdFlowRead(ap1, c, n1, n2, _, _, _, config) and
     fwdFlowConsCand(ap1, c, ap2, config)
   }
 
   pragma[nomagic]
-  private predicate callMayFlowThroughFwd(DataFlowCall call, Configuration config) {
+  private predicate callMayFlowThroughFwd(DataFlowCall call, MyTaintTrackingConfig config) {
     exists(Ap argAp0, NodeEx out, FlowState state, Cc cc, ApOption argAp, Ap ap |
       fwdFlow(out, state, pragma[only_bind_into](cc), pragma[only_bind_into](argAp), ap,
         pragma[only_bind_into](config)) and
@@ -2315,7 +2371,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate flowThroughIntoCall(
-    DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, boolean allowsFieldFlow, Configuration config
+    DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, boolean allowsFieldFlow, MyTaintTrackingConfig config
   ) {
     flowIntoCall(call, arg, p, allowsFieldFlow, config) and
     fwdFlow(arg, _, _, _, _, pragma[only_bind_into](config)) and
@@ -2325,7 +2381,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate returnNodeMayFlowThrough(
-    RetNodeEx ret, FlowState state, Ap ap, Configuration config
+    RetNodeEx ret, FlowState state, Ap ap, MyTaintTrackingConfig config
   ) {
     fwdFlow(ret, state, any(CcCall ccc), apSome(_), ap, config)
   }
@@ -2340,7 +2396,7 @@ private module Stage3 {
    */
   pragma[nomagic]
   predicate revFlow(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     revFlow0(node, state, toReturn, returnAp, ap, config) and
     fwdFlow(node, state, _, _, ap, config)
@@ -2348,7 +2404,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate revFlow0(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     fwdFlow(node, state, _, _, ap, config) and
     sinkNode(node, state, config) and
@@ -2426,7 +2482,7 @@ private module Stage3 {
   pragma[nomagic]
   private predicate revFlowStore(
     Ap ap0, Content c, Ap ap, NodeEx node, FlowState state, TypedContent tc, NodeEx mid,
-    boolean toReturn, ApOption returnAp, Configuration config
+    boolean toReturn, ApOption returnAp, MyTaintTrackingConfig config
   ) {
     revFlow(mid, state, toReturn, returnAp, ap0, config) and
     storeStepFwd(node, ap, tc, mid, ap0, config) and
@@ -2438,7 +2494,7 @@ private module Stage3 {
    * resulting in access path `cons`.
    */
   pragma[nomagic]
-  private predicate revFlowConsCand(Ap cons, Content c, Ap tail, Configuration config) {
+  private predicate revFlowConsCand(Ap cons, Content c, Ap tail, MyTaintTrackingConfig config) {
     exists(NodeEx mid, Ap tail0 |
       revFlow(mid, _, _, _, tail, config) and
       tail = pragma[only_bind_into](tail0) and
@@ -2449,7 +2505,7 @@ private module Stage3 {
   pragma[nomagic]
   private predicate revFlowOut(
     DataFlowCall call, RetNodeEx ret, FlowState state, boolean toReturn, ApOption returnAp, Ap ap,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(NodeEx out, boolean allowsFieldFlow |
       revFlow(out, state, toReturn, returnAp, ap, config) and
@@ -2460,7 +2516,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate revFlowInNotToReturn(
-    ArgNodeEx arg, FlowState state, ApOption returnAp, Ap ap, Configuration config
+    ArgNodeEx arg, FlowState state, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p, boolean allowsFieldFlow |
       revFlow(p, state, false, returnAp, ap, config) and
@@ -2471,7 +2527,7 @@ private module Stage3 {
 
   pragma[nomagic]
   private predicate revFlowInToReturn(
-    DataFlowCall call, ArgNodeEx arg, FlowState state, Ap returnAp, Ap ap, Configuration config
+    DataFlowCall call, ArgNodeEx arg, FlowState state, Ap returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p, boolean allowsFieldFlow |
       revFlow(p, state, true, apSome(returnAp), ap, config) and
@@ -2487,7 +2543,7 @@ private module Stage3 {
    */
   pragma[nomagic]
   private predicate revFlowIsReturned(
-    DataFlowCall call, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    DataFlowCall call, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(RetNodeEx ret, FlowState state, CcCall ccc |
       revFlowOut(call, ret, state, toReturn, returnAp, ap, config) and
@@ -2499,7 +2555,7 @@ private module Stage3 {
   pragma[nomagic]
   predicate storeStepCand(
     NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, DataFlowType contentType,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(Ap ap2, Content c |
       PrevStage::storeStepCand(node1, _, tc, node2, contentType, config) and
@@ -2508,7 +2564,7 @@ private module Stage3 {
     )
   }
 
-  predicate readStepCand(NodeEx node1, Content c, NodeEx node2, Configuration config) {
+  predicate readStepCand(NodeEx node1, Content c, NodeEx node2, MyTaintTrackingConfig config) {
     exists(Ap ap1, Ap ap2 |
       revFlow(node2, _, _, _, pragma[only_bind_into](ap2), pragma[only_bind_into](config)) and
       readStepFwd(node1, ap1, c, node2, ap2, config) and
@@ -2517,34 +2573,34 @@ private module Stage3 {
     )
   }
 
-  predicate revFlow(NodeEx node, FlowState state, Configuration config) {
+  predicate revFlow(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
     revFlow(node, state, _, _, _, config)
   }
 
   pragma[nomagic]
-  predicate revFlow(NodeEx node, Configuration config) { revFlow(node, _, _, _, _, config) }
+  predicate revFlow(NodeEx node, MyTaintTrackingConfig config) { revFlow(node, _, _, _, _, config) }
 
   // use an alias as a workaround for bad functionality-induced joins
   pragma[nomagic]
-  predicate revFlowAlias(NodeEx node, Configuration config) { revFlow(node, _, _, _, _, config) }
+  predicate revFlowAlias(NodeEx node, MyTaintTrackingConfig config) { revFlow(node, _, _, _, _, config) }
 
   // use an alias as a workaround for bad functionality-induced joins
   pragma[nomagic]
   predicate revFlowAlias(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     revFlow(node, state, toReturn, returnAp, ap, config)
   }
 
-  private predicate fwdConsCand(TypedContent tc, Ap ap, Configuration config) {
+  private predicate fwdConsCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     storeStepFwd(_, ap, tc, _, _, config)
   }
 
-  private predicate revConsCand(TypedContent tc, Ap ap, Configuration config) {
+  private predicate revConsCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     storeStepCand(_, ap, tc, _, _, config)
   }
 
-  private predicate validAp(Ap ap, Configuration config) {
+  private predicate validAp(Ap ap, MyTaintTrackingConfig config) {
     revFlow(_, _, _, _, ap, config) and ap instanceof ApNil
     or
     exists(TypedContent head, Ap tail |
@@ -2553,20 +2609,20 @@ private module Stage3 {
     )
   }
 
-  predicate consCand(TypedContent tc, Ap ap, Configuration config) {
+  predicate consCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     revConsCand(tc, ap, config) and
     validAp(ap, config)
   }
 
   pragma[noinline]
   private predicate parameterFlow(
-    ParamNodeEx p, Ap ap, Ap ap0, DataFlowCallable c, Configuration config
+    ParamNodeEx p, Ap ap, Ap ap0, DataFlowCallable c, MyTaintTrackingConfig config
   ) {
     revFlow(p, _, true, apSome(ap0), ap, config) and
     c = p.getEnclosingCallable()
   }
 
-  predicate parameterMayFlowThrough(ParamNodeEx p, DataFlowCallable c, Ap ap, Configuration config) {
+  predicate parameterMayFlowThrough(ParamNodeEx p, DataFlowCallable c, Ap ap, MyTaintTrackingConfig config) {
     exists(RetNodeEx ret, FlowState state, Ap ap0, ReturnKindExt kind, ParameterPosition pos |
       parameterFlow(p, ap, ap0, c, config) and
       c = ret.getEnclosingCallable() and
@@ -2585,7 +2641,7 @@ private module Stage3 {
   }
 
   pragma[nomagic]
-  predicate callMayFlowThroughRev(DataFlowCall call, Configuration config) {
+  predicate callMayFlowThroughRev(DataFlowCall call, MyTaintTrackingConfig config) {
     exists(
       Ap returnAp0, ArgNodeEx arg, FlowState state, boolean toReturn, ApOption returnAp, Ap ap
     |
@@ -2596,7 +2652,7 @@ private module Stage3 {
   }
 
   predicate stats(
-    boolean fwd, int nodes, int fields, int conscand, int states, int tuples, Configuration config
+    boolean fwd, int nodes, int fields, int conscand, int states, int tuples, MyTaintTrackingConfig config
   ) {
     fwd = true and
     nodes = count(NodeEx node | fwdFlow(node, _, _, _, _, config)) and
@@ -2626,7 +2682,7 @@ private module Stage3 {
  * and remains relevant for the following pruning stage.
  */
 private predicate flowCandSummaryCtx(
-  NodeEx node, FlowState state, AccessPathFront argApf, Configuration config
+  NodeEx node, FlowState state, AccessPathFront argApf, MyTaintTrackingConfig config
 ) {
   exists(AccessPathFront apf |
     Stage3::revFlow(node, state, true, _, apf, config) and
@@ -2638,7 +2694,7 @@ private predicate flowCandSummaryCtx(
  * Holds if a length 2 access path approximation with the head `tc` is expected
  * to be expensive.
  */
-private predicate expensiveLen2unfolding(TypedContent tc, Configuration config) {
+private predicate expensiveLen2unfolding(TypedContent tc, MyTaintTrackingConfig config) {
   exists(int tails, int nodes, int apLimit, int tupleLimit |
     tails = strictcount(AccessPathFront apf | Stage3::consCand(tc, apf, config)) and
     nodes =
@@ -2887,14 +2943,14 @@ private module Stage4 {
 
   private predicate localStep(
     NodeEx node1, FlowState state1, NodeEx node2, FlowState state2, boolean preservesValue,
-    ApNil ap, Configuration config, LocalCc lcc
+    ApNil ap, MyTaintTrackingConfig config, LocalCc lcc
   ) {
     localFlowBigStep(node1, state1, node2, state2, preservesValue, ap.getFront(), config, lcc)
   }
 
   pragma[nomagic]
   private predicate flowOutOfCall(
-    DataFlowCall call, RetNodeEx node1, NodeEx node2, boolean allowsFieldFlow, Configuration config
+    DataFlowCall call, RetNodeEx node1, NodeEx node2, boolean allowsFieldFlow, MyTaintTrackingConfig config
   ) {
     exists(FlowState state |
       flowOutOfCallNodeCand2(call, node1, node2, allowsFieldFlow, config) and
@@ -2908,7 +2964,7 @@ private module Stage4 {
   pragma[nomagic]
   private predicate flowIntoCall(
     DataFlowCall call, ArgNodeEx node1, ParamNodeEx node2, boolean allowsFieldFlow,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(FlowState state |
       flowIntoCallNodeCand2(call, node1, node2, allowsFieldFlow, config) and
@@ -2920,7 +2976,7 @@ private module Stage4 {
   }
 
   bindingset[node, state, ap, config]
-  private predicate filter(NodeEx node, FlowState state, Ap ap, Configuration config) { any() }
+  private predicate filter(NodeEx node, FlowState state, Ap ap, MyTaintTrackingConfig config) { any() }
 
   // Type checking is not necessary here as it has already been done in stage 3.
   bindingset[ap, contentType]
@@ -2928,7 +2984,7 @@ private module Stage4 {
 
   /* Begin: Stage 4 logic. */
   bindingset[node, state, config]
-  private predicate flowCand(NodeEx node, FlowState state, ApApprox apa, Configuration config) {
+  private predicate flowCand(NodeEx node, FlowState state, ApApprox apa, MyTaintTrackingConfig config) {
     PrevStage::revFlow(node, state, _, _, apa, config)
   }
 
@@ -2940,7 +2996,7 @@ private module Stage4 {
   pragma[nomagic]
   private predicate flowThroughOutOfCall(
     DataFlowCall call, CcCall ccc, RetNodeEx ret, NodeEx out, boolean allowsFieldFlow,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     flowOutOfCall(call, ret, out, allowsFieldFlow, pragma[only_bind_into](config)) and
     PrevStage::callMayFlowThroughRev(call, pragma[only_bind_into](config)) and
@@ -2958,7 +3014,7 @@ private module Stage4 {
    * argument.
    */
   pragma[nomagic]
-  predicate fwdFlow(NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, Configuration config) {
+  predicate fwdFlow(NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config) {
     fwdFlow0(node, state, cc, argAp, ap, config) and
     flowCand(node, state, unbindApa(getApprox(ap)), config) and
     filter(node, state, ap, config)
@@ -2966,7 +3022,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate fwdFlow0(
-    NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     sourceNode(node, state, config) and
     (if hasSourceCallCtx(config) then cc = ccSomeCall() else cc = ccNone()) and
@@ -3040,7 +3096,7 @@ private module Stage4 {
   pragma[nomagic]
   private predicate fwdFlowStore(
     NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, FlowState state, Cc cc, ApOption argAp,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(DataFlowType contentType |
       fwdFlow(node1, state, cc, argAp, ap1, config) and
@@ -3054,7 +3110,7 @@ private module Stage4 {
    * resulting in access path `cons`.
    */
   pragma[nomagic]
-  private predicate fwdFlowConsCand(Ap cons, Content c, Ap tail, Configuration config) {
+  private predicate fwdFlowConsCand(Ap cons, Content c, Ap tail, MyTaintTrackingConfig config) {
     exists(TypedContent tc |
       fwdFlowStore(_, tail, tc, _, _, _, _, config) and
       tc.getContent() = c and
@@ -3065,7 +3121,7 @@ private module Stage4 {
   pragma[nomagic]
   private predicate fwdFlowRead(
     Ap ap, Content c, NodeEx node1, NodeEx node2, FlowState state, Cc cc, ApOption argAp,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     fwdFlow(node1, state, cc, argAp, ap, config) and
     PrevStage::readStepCand(node1, c, node2, config) and
@@ -3075,7 +3131,7 @@ private module Stage4 {
   pragma[nomagic]
   private predicate fwdFlowIn(
     DataFlowCall call, ParamNodeEx p, FlowState state, Cc outercc, Cc innercc, ApOption argAp,
-    Ap ap, Configuration config
+    Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ArgNodeEx arg, boolean allowsFieldFlow |
       fwdFlow(arg, state, outercc, argAp, ap, config) and
@@ -3087,7 +3143,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate fwdFlowOutNotFromArg(
-    NodeEx out, FlowState state, Cc ccOut, ApOption argAp, Ap ap, Configuration config
+    NodeEx out, FlowState state, Cc ccOut, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(
       DataFlowCall call, RetNodeEx ret, boolean allowsFieldFlow, CcNoCall innercc,
@@ -3103,7 +3159,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate fwdFlowOutFromArg(
-    DataFlowCall call, NodeEx out, FlowState state, Ap argAp, Ap ap, Configuration config
+    DataFlowCall call, NodeEx out, FlowState state, Ap argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(RetNodeEx ret, boolean allowsFieldFlow, CcCall ccc |
       fwdFlow(ret, state, ccc, apSome(argAp), ap, config) and
@@ -3118,7 +3174,7 @@ private module Stage4 {
    */
   pragma[nomagic]
   private predicate fwdFlowIsEntered(
-    DataFlowCall call, Cc cc, ApOption argAp, Ap ap, Configuration config
+    DataFlowCall call, Cc cc, ApOption argAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p |
       fwdFlowIn(call, p, _, cc, _, argAp, ap, config) and
@@ -3128,7 +3184,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate storeStepFwd(
-    NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, Ap ap2, Configuration config
+    NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, Ap ap2, MyTaintTrackingConfig config
   ) {
     fwdFlowStore(node1, ap1, tc, node2, _, _, _, config) and
     ap2 = apCons(tc, ap1) and
@@ -3136,14 +3192,14 @@ private module Stage4 {
   }
 
   private predicate readStepFwd(
-    NodeEx n1, Ap ap1, Content c, NodeEx n2, Ap ap2, Configuration config
+    NodeEx n1, Ap ap1, Content c, NodeEx n2, Ap ap2, MyTaintTrackingConfig config
   ) {
     fwdFlowRead(ap1, c, n1, n2, _, _, _, config) and
     fwdFlowConsCand(ap1, c, ap2, config)
   }
 
   pragma[nomagic]
-  private predicate callMayFlowThroughFwd(DataFlowCall call, Configuration config) {
+  private predicate callMayFlowThroughFwd(DataFlowCall call, MyTaintTrackingConfig config) {
     exists(Ap argAp0, NodeEx out, FlowState state, Cc cc, ApOption argAp, Ap ap |
       fwdFlow(out, state, pragma[only_bind_into](cc), pragma[only_bind_into](argAp), ap,
         pragma[only_bind_into](config)) and
@@ -3156,7 +3212,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate flowThroughIntoCall(
-    DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, boolean allowsFieldFlow, Configuration config
+    DataFlowCall call, ArgNodeEx arg, ParamNodeEx p, boolean allowsFieldFlow, MyTaintTrackingConfig config
   ) {
     flowIntoCall(call, arg, p, allowsFieldFlow, config) and
     fwdFlow(arg, _, _, _, _, pragma[only_bind_into](config)) and
@@ -3166,7 +3222,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate returnNodeMayFlowThrough(
-    RetNodeEx ret, FlowState state, Ap ap, Configuration config
+    RetNodeEx ret, FlowState state, Ap ap, MyTaintTrackingConfig config
   ) {
     fwdFlow(ret, state, any(CcCall ccc), apSome(_), ap, config)
   }
@@ -3181,7 +3237,7 @@ private module Stage4 {
    */
   pragma[nomagic]
   predicate revFlow(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     revFlow0(node, state, toReturn, returnAp, ap, config) and
     fwdFlow(node, state, _, _, ap, config)
@@ -3189,7 +3245,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate revFlow0(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     fwdFlow(node, state, _, _, ap, config) and
     sinkNode(node, state, config) and
@@ -3267,7 +3323,7 @@ private module Stage4 {
   pragma[nomagic]
   private predicate revFlowStore(
     Ap ap0, Content c, Ap ap, NodeEx node, FlowState state, TypedContent tc, NodeEx mid,
-    boolean toReturn, ApOption returnAp, Configuration config
+    boolean toReturn, ApOption returnAp, MyTaintTrackingConfig config
   ) {
     revFlow(mid, state, toReturn, returnAp, ap0, config) and
     storeStepFwd(node, ap, tc, mid, ap0, config) and
@@ -3279,7 +3335,7 @@ private module Stage4 {
    * resulting in access path `cons`.
    */
   pragma[nomagic]
-  private predicate revFlowConsCand(Ap cons, Content c, Ap tail, Configuration config) {
+  private predicate revFlowConsCand(Ap cons, Content c, Ap tail, MyTaintTrackingConfig config) {
     exists(NodeEx mid, Ap tail0 |
       revFlow(mid, _, _, _, tail, config) and
       tail = pragma[only_bind_into](tail0) and
@@ -3290,7 +3346,7 @@ private module Stage4 {
   pragma[nomagic]
   private predicate revFlowOut(
     DataFlowCall call, RetNodeEx ret, FlowState state, boolean toReturn, ApOption returnAp, Ap ap,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(NodeEx out, boolean allowsFieldFlow |
       revFlow(out, state, toReturn, returnAp, ap, config) and
@@ -3301,7 +3357,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate revFlowInNotToReturn(
-    ArgNodeEx arg, FlowState state, ApOption returnAp, Ap ap, Configuration config
+    ArgNodeEx arg, FlowState state, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p, boolean allowsFieldFlow |
       revFlow(p, state, false, returnAp, ap, config) and
@@ -3312,7 +3368,7 @@ private module Stage4 {
 
   pragma[nomagic]
   private predicate revFlowInToReturn(
-    DataFlowCall call, ArgNodeEx arg, FlowState state, Ap returnAp, Ap ap, Configuration config
+    DataFlowCall call, ArgNodeEx arg, FlowState state, Ap returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(ParamNodeEx p, boolean allowsFieldFlow |
       revFlow(p, state, true, apSome(returnAp), ap, config) and
@@ -3328,7 +3384,7 @@ private module Stage4 {
    */
   pragma[nomagic]
   private predicate revFlowIsReturned(
-    DataFlowCall call, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    DataFlowCall call, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     exists(RetNodeEx ret, FlowState state, CcCall ccc |
       revFlowOut(call, ret, state, toReturn, returnAp, ap, config) and
@@ -3340,7 +3396,7 @@ private module Stage4 {
   pragma[nomagic]
   predicate storeStepCand(
     NodeEx node1, Ap ap1, TypedContent tc, NodeEx node2, DataFlowType contentType,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(Ap ap2, Content c |
       PrevStage::storeStepCand(node1, _, tc, node2, contentType, config) and
@@ -3349,7 +3405,7 @@ private module Stage4 {
     )
   }
 
-  predicate readStepCand(NodeEx node1, Content c, NodeEx node2, Configuration config) {
+  predicate readStepCand(NodeEx node1, Content c, NodeEx node2, MyTaintTrackingConfig config) {
     exists(Ap ap1, Ap ap2 |
       revFlow(node2, _, _, _, pragma[only_bind_into](ap2), pragma[only_bind_into](config)) and
       readStepFwd(node1, ap1, c, node2, ap2, config) and
@@ -3358,34 +3414,34 @@ private module Stage4 {
     )
   }
 
-  predicate revFlow(NodeEx node, FlowState state, Configuration config) {
+  predicate revFlow(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
     revFlow(node, state, _, _, _, config)
   }
 
   pragma[nomagic]
-  predicate revFlow(NodeEx node, Configuration config) { revFlow(node, _, _, _, _, config) }
+  predicate revFlow(NodeEx node, MyTaintTrackingConfig config) { revFlow(node, _, _, _, _, config) }
 
   // use an alias as a workaround for bad functionality-induced joins
   pragma[nomagic]
-  predicate revFlowAlias(NodeEx node, Configuration config) { revFlow(node, _, _, _, _, config) }
+  predicate revFlowAlias(NodeEx node, MyTaintTrackingConfig config) { revFlow(node, _, _, _, _, config) }
 
   // use an alias as a workaround for bad functionality-induced joins
   pragma[nomagic]
   predicate revFlowAlias(
-    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, Configuration config
+    NodeEx node, FlowState state, boolean toReturn, ApOption returnAp, Ap ap, MyTaintTrackingConfig config
   ) {
     revFlow(node, state, toReturn, returnAp, ap, config)
   }
 
-  private predicate fwdConsCand(TypedContent tc, Ap ap, Configuration config) {
+  private predicate fwdConsCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     storeStepFwd(_, ap, tc, _, _, config)
   }
 
-  private predicate revConsCand(TypedContent tc, Ap ap, Configuration config) {
+  private predicate revConsCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     storeStepCand(_, ap, tc, _, _, config)
   }
 
-  private predicate validAp(Ap ap, Configuration config) {
+  private predicate validAp(Ap ap, MyTaintTrackingConfig config) {
     revFlow(_, _, _, _, ap, config) and ap instanceof ApNil
     or
     exists(TypedContent head, Ap tail |
@@ -3394,20 +3450,20 @@ private module Stage4 {
     )
   }
 
-  predicate consCand(TypedContent tc, Ap ap, Configuration config) {
+  predicate consCand(TypedContent tc, Ap ap, MyTaintTrackingConfig config) {
     revConsCand(tc, ap, config) and
     validAp(ap, config)
   }
 
   pragma[noinline]
   private predicate parameterFlow(
-    ParamNodeEx p, Ap ap, Ap ap0, DataFlowCallable c, Configuration config
+    ParamNodeEx p, Ap ap, Ap ap0, DataFlowCallable c, MyTaintTrackingConfig config
   ) {
     revFlow(p, _, true, apSome(ap0), ap, config) and
     c = p.getEnclosingCallable()
   }
 
-  predicate parameterMayFlowThrough(ParamNodeEx p, DataFlowCallable c, Ap ap, Configuration config) {
+  predicate parameterMayFlowThrough(ParamNodeEx p, DataFlowCallable c, Ap ap, MyTaintTrackingConfig config) {
     exists(RetNodeEx ret, FlowState state, Ap ap0, ReturnKindExt kind, ParameterPosition pos |
       parameterFlow(p, ap, ap0, c, config) and
       c = ret.getEnclosingCallable() and
@@ -3426,7 +3482,7 @@ private module Stage4 {
   }
 
   pragma[nomagic]
-  predicate callMayFlowThroughRev(DataFlowCall call, Configuration config) {
+  predicate callMayFlowThroughRev(DataFlowCall call, MyTaintTrackingConfig config) {
     exists(
       Ap returnAp0, ArgNodeEx arg, FlowState state, boolean toReturn, ApOption returnAp, Ap ap
     |
@@ -3437,7 +3493,7 @@ private module Stage4 {
   }
 
   predicate stats(
-    boolean fwd, int nodes, int fields, int conscand, int states, int tuples, Configuration config
+    boolean fwd, int nodes, int fields, int conscand, int states, int tuples, MyTaintTrackingConfig config
   ) {
     fwd = true and
     nodes = count(NodeEx node | fwdFlow(node, _, _, _, _, config)) and
@@ -3463,13 +3519,13 @@ private module Stage4 {
 }
 
 bindingset[conf, result]
-private Configuration unbindConf(Configuration conf) {
+private Configuration unbindConf(MyTaintTrackingConfig conf) {
   exists(Configuration c | result = pragma[only_bind_into](c) and conf = pragma[only_bind_into](c))
 }
 
 pragma[nomagic]
 private predicate nodeMayUseSummary0(
-  NodeEx n, DataFlowCallable c, FlowState state, AccessPathApprox apa, Configuration config
+  NodeEx n, DataFlowCallable c, FlowState state, AccessPathApprox apa, MyTaintTrackingConfig config
 ) {
   exists(AccessPathApprox apa0 |
     Stage4::parameterMayFlowThrough(_, c, _, _) and
@@ -3481,7 +3537,7 @@ private predicate nodeMayUseSummary0(
 
 pragma[nomagic]
 private predicate nodeMayUseSummary(
-  NodeEx n, FlowState state, AccessPathApprox apa, Configuration config
+  NodeEx n, FlowState state, AccessPathApprox apa, MyTaintTrackingConfig config
 ) {
   exists(DataFlowCallable c |
     Stage4::parameterMayFlowThrough(_, c, apa, config) and
@@ -3492,7 +3548,7 @@ private predicate nodeMayUseSummary(
 private newtype TSummaryCtx =
   TSummaryCtxNone() or
   TSummaryCtxSome(ParamNodeEx p, FlowState state, AccessPath ap) {
-    exists(Configuration config |
+    exists(MyTaintTrackingConfig config |
       Stage4::parameterMayFlowThrough(p, _, ap.getApprox(), config) and
       Stage4::revFlow(p, state, _, _, _, config)
     )
@@ -3537,7 +3593,7 @@ private class SummaryCtxSome extends SummaryCtx, TSummaryCtxSome {
 /**
  * Gets the number of length 2 access path approximations that correspond to `apa`.
  */
-private int count1to2unfold(AccessPathApproxCons1 apa, Configuration config) {
+private int count1to2unfold(AccessPathApproxCons1 apa, MyTaintTrackingConfig config) {
   exists(TypedContent tc, int len |
     tc = apa.getHead() and
     len = apa.len() and
@@ -3549,7 +3605,7 @@ private int count1to2unfold(AccessPathApproxCons1 apa, Configuration config) {
   )
 }
 
-private int countNodesUsingAccessPath(AccessPathApprox apa, Configuration config) {
+private int countNodesUsingAccessPath(AccessPathApprox apa, MyTaintTrackingConfig config) {
   result =
     strictcount(NodeEx n, FlowState state |
       Stage4::revFlow(n, state, _, _, apa, config) or nodeMayUseSummary(n, state, apa, config)
@@ -3560,7 +3616,7 @@ private int countNodesUsingAccessPath(AccessPathApprox apa, Configuration config
  * Holds if a length 2 access path approximation matching `apa` is expected
  * to be expensive.
  */
-private predicate expensiveLen1to2unfolding(AccessPathApproxCons1 apa, Configuration config) {
+private predicate expensiveLen1to2unfolding(AccessPathApproxCons1 apa, MyTaintTrackingConfig config) {
   exists(int aps, int nodes, int apLimit, int tupleLimit |
     aps = count1to2unfold(apa, config) and
     nodes = countNodesUsingAccessPath(apa, config) and
@@ -3570,7 +3626,7 @@ private predicate expensiveLen1to2unfolding(AccessPathApproxCons1 apa, Configura
   )
 }
 
-private AccessPathApprox getATail(AccessPathApprox apa, Configuration config) {
+private AccessPathApprox getATail(AccessPathApprox apa, MyTaintTrackingConfig config) {
   exists(TypedContent head |
     apa.pop(head) = result and
     Stage4::consCand(head, result, config)
@@ -3581,7 +3637,7 @@ private AccessPathApprox getATail(AccessPathApprox apa, Configuration config) {
  * Holds with `unfold = false` if a precise head-tail representation of `apa` is
  * expected to be expensive. Holds with `unfold = true` otherwise.
  */
-private predicate evalUnfold(AccessPathApprox apa, boolean unfold, Configuration config) {
+private predicate evalUnfold(AccessPathApprox apa, boolean unfold, MyTaintTrackingConfig config) {
   if apa.getHead().forceHighPrecision()
   then unfold = true
   else
@@ -3596,7 +3652,7 @@ private predicate evalUnfold(AccessPathApprox apa, boolean unfold, Configuration
 /**
  * Gets the number of `AccessPath`s that correspond to `apa`.
  */
-private int countAps(AccessPathApprox apa, Configuration config) {
+private int countAps(AccessPathApprox apa, MyTaintTrackingConfig config) {
   evalUnfold(apa, false, config) and
   result = 1 and
   (not apa instanceof AccessPathApproxCons1 or expensiveLen1to2unfolding(apa, config))
@@ -3614,7 +3670,7 @@ private int countAps(AccessPathApprox apa, Configuration config) {
  * that it is expanded to a precise head-tail representation.
  */
 language[monotonicAggregates]
-private int countPotentialAps(AccessPathApprox apa, Configuration config) {
+private int countPotentialAps(AccessPathApprox apa, MyTaintTrackingConfig config) {
   apa instanceof AccessPathApproxNil and result = 1
   or
   result = strictsum(AccessPathApprox tail | tail = getATail(apa, config) | countAps(tail, config))
@@ -3649,7 +3705,7 @@ private newtype TAccessPath =
 
 private newtype TPathNode =
   TPathNodeMid(
-    NodeEx node, FlowState state, CallContext cc, SummaryCtx sc, AccessPath ap, Configuration config
+    NodeEx node, FlowState state, CallContext cc, SummaryCtx sc, AccessPath ap, MyTaintTrackingConfig config
   ) {
     // A PathNode is introduced by a source ...
     Stage4::revFlow(node, state, config) and
@@ -3669,7 +3725,7 @@ private newtype TPathNode =
       Stage4::revFlow(node, state, _, _, ap.getApprox(), pragma[only_bind_into](config))
     )
   } or
-  TPathNodeSink(NodeEx node, FlowState state, Configuration config) {
+  TPathNodeSink(NodeEx node, FlowState state, MyTaintTrackingConfig config) {
     exists(PathNodeMid sink |
       sink.isAtSink() and
       node = sink.getNodeEx() and
@@ -3993,7 +4049,7 @@ private class PathNodeMid extends PathNodeImpl, TPathNodeMid {
   CallContext cc;
   SummaryCtx sc;
   AccessPath ap;
-  Configuration config;
+  MyTaintTrackingConfig config;
 
   PathNodeMid() { this = TPathNodeMid(node, state, cc, sc, ap, config) }
 
@@ -4070,7 +4126,7 @@ private class PathNodeMid extends PathNodeImpl, TPathNodeMid {
 private class PathNodeSink extends PathNodeImpl, TPathNodeSink {
   NodeEx node;
   FlowState state;
-  Configuration config;
+  MyTaintTrackingConfig config;
 
   PathNodeSink() { this = TPathNodeSink(node, state, config) }
 
@@ -4087,7 +4143,7 @@ private class PathNodeSink extends PathNodeImpl, TPathNodeSink {
 
 private predicate pathNode(
   PathNodeMid mid, NodeEx midnode, FlowState state, CallContext cc, SummaryCtx sc, AccessPath ap,
-  Configuration conf, LocalCallContext localCC
+  MyTaintTrackingConfig conf, LocalCallContext localCC
 ) {
   midnode = mid.getNodeEx() and
   state = mid.getState() and
@@ -4108,13 +4164,13 @@ pragma[nomagic]
 private predicate pathStep(
   PathNodeMid mid, NodeEx node, FlowState state, CallContext cc, SummaryCtx sc, AccessPath ap
 ) {
-  exists(NodeEx midnode, FlowState state0, Configuration conf, LocalCallContext localCC |
+  exists(NodeEx midnode, FlowState state0, MyTaintTrackingConfig conf, LocalCallContext localCC |
     pathNode(mid, midnode, state0, cc, sc, ap, conf, localCC) and
     localFlowBigStep(midnode, state0, node, state, true, _, conf, localCC)
   )
   or
   exists(
-    AccessPath ap0, NodeEx midnode, FlowState state0, Configuration conf, LocalCallContext localCC
+    AccessPath ap0, NodeEx midnode, FlowState state0, MyTaintTrackingConfig conf, LocalCallContext localCC
   |
     pathNode(mid, midnode, state0, cc, sc, ap0, conf, localCC) and
     localFlowBigStep(midnode, state0, node, state, false, ap.getFront(), conf, localCC) and
@@ -4176,7 +4232,7 @@ private predicate pathStoreStep(
 
 private predicate pathOutOfCallable0(
   PathNodeMid mid, ReturnPosition pos, FlowState state, CallContext innercc, AccessPathApprox apa,
-  Configuration config
+  MyTaintTrackingConfig config
 ) {
   pos = mid.getNodeEx().(RetNodeEx).getReturnPosition() and
   state = mid.getState() and
@@ -4189,7 +4245,7 @@ private predicate pathOutOfCallable0(
 pragma[nomagic]
 private predicate pathOutOfCallable1(
   PathNodeMid mid, DataFlowCall call, ReturnKindExt kind, FlowState state, CallContext cc,
-  AccessPathApprox apa, Configuration config
+  AccessPathApprox apa, MyTaintTrackingConfig config
 ) {
   exists(ReturnPosition pos, DataFlowCallable c, CallContext innercc |
     pathOutOfCallable0(mid, pos, state, innercc, apa, config) and
@@ -4203,7 +4259,7 @@ private predicate pathOutOfCallable1(
 
 pragma[noinline]
 private NodeEx getAnOutNodeFlow(
-  ReturnKindExt kind, DataFlowCall call, AccessPathApprox apa, Configuration config
+  ReturnKindExt kind, DataFlowCall call, AccessPathApprox apa, MyTaintTrackingConfig config
 ) {
   result.asNode() = kind.getAnOutNode(call) and
   Stage4::revFlow(result, _, _, _, apa, config)
@@ -4215,7 +4271,7 @@ private NodeEx getAnOutNodeFlow(
  */
 pragma[noinline]
 private predicate pathOutOfCallable(PathNodeMid mid, NodeEx out, FlowState state, CallContext cc) {
-  exists(ReturnKindExt kind, DataFlowCall call, AccessPathApprox apa, Configuration config |
+  exists(ReturnKindExt kind, DataFlowCall call, AccessPathApprox apa, MyTaintTrackingConfig config |
     pathOutOfCallable1(mid, call, kind, state, cc, apa, config) and
     out = getAnOutNodeFlow(kind, call, apa, config)
   )
@@ -4227,7 +4283,7 @@ private predicate pathOutOfCallable(PathNodeMid mid, NodeEx out, FlowState state
 pragma[noinline]
 private predicate pathIntoArg(
   PathNodeMid mid, ParameterPosition ppos, FlowState state, CallContext cc, DataFlowCall call,
-  AccessPath ap, AccessPathApprox apa, Configuration config
+  AccessPath ap, AccessPathApprox apa, MyTaintTrackingConfig config
 ) {
   exists(ArgNodeEx arg, ArgumentPosition apos |
     pathNode(mid, arg, state, cc, _, ap, config, _) and
@@ -4239,7 +4295,7 @@ private predicate pathIntoArg(
 
 pragma[nomagic]
 private predicate parameterCand(
-  DataFlowCallable callable, ParameterPosition pos, AccessPathApprox apa, Configuration config
+  DataFlowCallable callable, ParameterPosition pos, AccessPathApprox apa, MyTaintTrackingConfig config
 ) {
   exists(ParamNodeEx p |
     Stage4::revFlow(p, _, _, _, apa, config) and
@@ -4250,7 +4306,7 @@ private predicate parameterCand(
 pragma[nomagic]
 private predicate pathIntoCallable0(
   PathNodeMid mid, DataFlowCallable callable, ParameterPosition pos, FlowState state,
-  CallContext outercc, DataFlowCall call, AccessPath ap, Configuration config
+  CallContext outercc, DataFlowCall call, AccessPath ap, MyTaintTrackingConfig config
 ) {
   exists(AccessPathApprox apa |
     pathIntoArg(mid, pragma[only_bind_into](pos), state, outercc, call, ap,
@@ -4269,7 +4325,7 @@ private predicate pathIntoCallable0(
 pragma[nomagic]
 private predicate pathIntoCallable(
   PathNodeMid mid, ParamNodeEx p, FlowState state, CallContext outercc, CallContextCall innercc,
-  SummaryCtx sc, DataFlowCall call, Configuration config
+  SummaryCtx sc, DataFlowCall call, MyTaintTrackingConfig config
 ) {
   exists(ParameterPosition pos, DataFlowCallable callable, AccessPath ap |
     pathIntoCallable0(mid, callable, pos, state, outercc, call, ap, config) and
@@ -4289,13 +4345,34 @@ private predicate pathIntoCallable(
     then innercc = TSpecificCall(call)
     else innercc = TSomeCall()
   )
+  // or exists( NativeCall nc, DataFlowCallable dc, AccessPath ap |
+  //   pathNode(mid, _, state, outercc, _, ap, config, _)
+  //   and mid.getNode().asExpr() = nc.getArg()
+  //   and call.asCall() = nc.getSrc()
+  //   and p.isParameterOf(dc, -1)
+  //   and dc.asCallable() = nc.getDst()
+    // and
+    // (
+    //   sc = TSummaryCtxSome(p, state, ap)
+    //   or
+    //   not exists(TSummaryCtxSome(p, state, ap)) and
+    //   sc = TSummaryCtxNone() and
+    //   // When the call contexts of source and sink needs to match then there's
+    //   // never any reason to enter a callable except to find a summary. See also
+    //   // the comment in `PathNodeMid::isAtSink`.
+    //   not config.getAFeature() instanceof FeatureEqualSourceSinkCallContext
+    // )
+    // and if recordDataFlowCallSite(call, dc)
+    //   then innercc = TSpecificCall(call)
+    //   else innercc = TSomeCall()
+  // )
 }
 
 /** Holds if data may flow from a parameter given by `sc` to a return of kind `kind`. */
 pragma[nomagic]
 private predicate paramFlowsThrough(
   ReturnKindExt kind, FlowState state, CallContextCall cc, SummaryCtxSome sc, AccessPath ap,
-  AccessPathApprox apa, Configuration config
+  AccessPathApprox apa, MyTaintTrackingConfig config
 ) {
   exists(PathNodeMid mid, RetNodeEx ret, ParameterPosition pos |
     pathNode(mid, ret, state, cc, sc, ap, config, _) and
@@ -4314,7 +4391,7 @@ private predicate paramFlowsThrough(
 pragma[nomagic]
 private predicate pathThroughCallable0(
   DataFlowCall call, PathNodeMid mid, ReturnKindExt kind, FlowState state, CallContext cc,
-  AccessPath ap, AccessPathApprox apa, Configuration config
+  AccessPath ap, AccessPathApprox apa, MyTaintTrackingConfig config
 ) {
   exists(CallContext innercc, SummaryCtx sc |
     pathIntoCallable(mid, _, _, cc, innercc, sc, call, config) and
@@ -4330,7 +4407,7 @@ pragma[noinline]
 private predicate pathThroughCallable(
   PathNodeMid mid, NodeEx out, FlowState state, CallContext cc, AccessPath ap
 ) {
-  exists(DataFlowCall call, ReturnKindExt kind, AccessPathApprox apa, Configuration config |
+  exists(DataFlowCall call, ReturnKindExt kind, AccessPathApprox apa, MyTaintTrackingConfig config |
     pathThroughCallable0(call, mid, kind, state, cc, ap, apa, config) and
     out = getAnOutNodeFlow(kind, call, apa, config)
   )
@@ -4346,7 +4423,7 @@ private module Subpaths {
     PathNodeImpl arg, ParamNodeEx par, SummaryCtxSome sc, CallContext innercc, ReturnKindExt kind,
     NodeEx out, FlowState sout, AccessPath apout
   ) {
-    exists(Configuration config |
+    exists(MyTaintTrackingConfig config |
       pathThroughCallable(arg, out, pragma[only_bind_into](sout), _, pragma[only_bind_into](apout)) and
       pathIntoCallable(arg, par, _, _, innercc, sc, _, config) and
       paramFlowsThrough(kind, pragma[only_bind_into](sout), innercc, sc,
@@ -4439,7 +4516,7 @@ private module Subpaths {
  * sinks.
  */
 private predicate flowsTo(
-  PathNode flowsource, PathNodeSink flowsink, Node source, Node sink, Configuration configuration
+  PathNode flowsource, PathNodeSink flowsink, Node source, Node sink, MyTaintTrackingConfig configuration
 ) {
   flowsource.isSource() and
   flowsource.getConfiguration() = configuration and
@@ -4454,7 +4531,7 @@ private predicate flowsTo(
  * Will only have results if `configuration` has non-empty sources and
  * sinks.
  */
-predicate flowsTo(Node source, Node sink, Configuration configuration) {
+predicate flowsTo(Node source, Node sink, MyTaintTrackingConfig configuration) {
   flowsTo(_, _, source, sink, configuration)
 }
 
@@ -4483,7 +4560,7 @@ private predicate finalStats(
  */
 predicate stageStats(
   int n, string stage, int nodes, int fields, int conscand, int states, int tuples,
-  Configuration config
+  MyTaintTrackingConfig config
 ) {
   stage = "1 Fwd" and
   n = 10 and
@@ -4523,7 +4600,7 @@ predicate stageStats(
 }
 
 private module FlowExploration {
-  private predicate callableStep(DataFlowCallable c1, DataFlowCallable c2, Configuration config) {
+  private predicate callableStep(DataFlowCallable c1, DataFlowCallable c2, MyTaintTrackingConfig config) {
     exists(NodeEx node1, NodeEx node2 |
       jumpStep(node1, node2, config)
       or
@@ -4543,7 +4620,7 @@ private module FlowExploration {
     )
   }
 
-  private predicate interestingCallableSrc(DataFlowCallable c, Configuration config) {
+  private predicate interestingCallableSrc(DataFlowCallable c, MyTaintTrackingConfig config) {
     exists(Node n | config.isSource(n) or config.isSource(n, _) | c = getNodeEnclosingCallable(n))
     or
     exists(DataFlowCallable mid |
@@ -4551,7 +4628,7 @@ private module FlowExploration {
     )
   }
 
-  private predicate interestingCallableSink(DataFlowCallable c, Configuration config) {
+  private predicate interestingCallableSink(DataFlowCallable c, MyTaintTrackingConfig config) {
     exists(Node n | config.isSink(n) or config.isSink(n, _) | c = getNodeEnclosingCallable(n))
     or
     exists(DataFlowCallable mid |
@@ -4560,7 +4637,7 @@ private module FlowExploration {
   }
 
   private newtype TCallableExt =
-    TCallable(DataFlowCallable c, Configuration config) {
+    TCallable(DataFlowCallable c, MyTaintTrackingConfig config) {
       interestingCallableSrc(c, config) or
       interestingCallableSink(c, config)
     } or
@@ -4572,19 +4649,19 @@ private module FlowExploration {
   private predicate callableExtSink(TCallableSink sink) { any() }
 
   private predicate callableExtStepFwd(TCallableExt ce1, TCallableExt ce2) {
-    exists(DataFlowCallable c1, DataFlowCallable c2, Configuration config |
+    exists(DataFlowCallable c1, DataFlowCallable c2, MyTaintTrackingConfig config |
       callableStep(c1, c2, config) and
       ce1 = TCallable(c1, pragma[only_bind_into](config)) and
       ce2 = TCallable(c2, pragma[only_bind_into](config))
     )
     or
-    exists(Node n, Configuration config |
+    exists(Node n, MyTaintTrackingConfig config |
       ce1 = TCallableSrc() and
       (config.isSource(n) or config.isSource(n, _)) and
       ce2 = TCallable(getNodeEnclosingCallable(n), config)
     )
     or
-    exists(Node n, Configuration config |
+    exists(Node n, MyTaintTrackingConfig config |
       ce2 = TCallableSink() and
       (config.isSink(n) or config.isSink(n, _)) and
       ce1 = TCallable(getNodeEnclosingCallable(n), config)
@@ -4601,11 +4678,11 @@ private module FlowExploration {
   private int distSinkExt(TCallableExt c) =
     shortestDistances(callableExtSink/1, callableExtStepRev/2)(_, c, result)
 
-  private int distSrc(DataFlowCallable c, Configuration config) {
+  private int distSrc(DataFlowCallable c, MyTaintTrackingConfig config) {
     result = distSrcExt(TCallable(c, config)) - 1
   }
 
-  private int distSink(DataFlowCallable c, Configuration config) {
+  private int distSink(DataFlowCallable c, MyTaintTrackingConfig config) {
     result = distSinkExt(TCallable(c, config)) - 1
   }
 
@@ -4724,7 +4801,7 @@ private module FlowExploration {
   private newtype TPartialPathNode =
     TPartialPathNodeFwd(
       NodeEx node, FlowState state, CallContext cc, TSummaryCtx1 sc1, TSummaryCtx2 sc2,
-      TSummaryCtx3 sc3, PartialAccessPath ap, Configuration config
+      TSummaryCtx3 sc3, PartialAccessPath ap, MyTaintTrackingConfig config
     ) {
       sourceNode(node, state, config) and
       cc instanceof CallContextAny and
@@ -4739,7 +4816,7 @@ private module FlowExploration {
     } or
     TPartialPathNodeRev(
       NodeEx node, FlowState state, TRevSummaryCtx1 sc1, TRevSummaryCtx2 sc2, TRevSummaryCtx3 sc3,
-      RevPartialAccessPath ap, Configuration config
+      RevPartialAccessPath ap, MyTaintTrackingConfig config
     ) {
       sinkNode(node, state, config) and
       sc1 = TRevSummaryCtx1None() and
@@ -4764,7 +4841,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate partialPathNodeMk0(
     NodeEx node, FlowState state, CallContext cc, TSummaryCtx1 sc1, TSummaryCtx2 sc2,
-    TSummaryCtx3 sc3, PartialAccessPath ap, Configuration config
+    TSummaryCtx3 sc3, PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     exists(PartialPathNodeFwd mid |
       partialPathStep(mid, node, state, cc, sc1, sc2, sc3, ap, config) and
@@ -4877,7 +4954,7 @@ private module FlowExploration {
     TSummaryCtx2 sc2;
     TSummaryCtx3 sc3;
     PartialAccessPath ap;
-    Configuration config;
+    MyTaintTrackingConfig config;
 
     PartialPathNodeFwd() { this = TPartialPathNodeFwd(node, state, cc, sc1, sc2, sc3, ap, config) }
 
@@ -4920,7 +4997,7 @@ private module FlowExploration {
     TRevSummaryCtx2 sc2;
     TRevSummaryCtx3 sc3;
     RevPartialAccessPath ap;
-    Configuration config;
+    MyTaintTrackingConfig config;
 
     PartialPathNodeRev() { this = TPartialPathNodeRev(node, state, sc1, sc2, sc3, ap, config) }
 
@@ -4954,7 +5031,7 @@ private module FlowExploration {
 
   private predicate partialPathStep(
     PartialPathNodeFwd mid, NodeEx node, FlowState state, CallContext cc, TSummaryCtx1 sc1,
-    TSummaryCtx2 sc2, TSummaryCtx3 sc3, PartialAccessPath ap, Configuration config
+    TSummaryCtx2 sc2, TSummaryCtx3 sc3, PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     not isUnreachableInCallCached(node.asNode(), cc.(CallContextSpecificCall).getCall()) and
     (
@@ -5065,7 +5142,7 @@ private module FlowExploration {
 
   pragma[nomagic]
   private predicate apConsFwd(
-    PartialAccessPath ap1, TypedContent tc, PartialAccessPath ap2, Configuration config
+    PartialAccessPath ap1, TypedContent tc, PartialAccessPath ap2, MyTaintTrackingConfig config
   ) {
     exists(PartialPathNodeFwd mid |
       partialPathStoreStep(mid, ap1, tc, _, ap2) and
@@ -5076,7 +5153,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate partialPathReadStep(
     PartialPathNodeFwd mid, PartialAccessPath ap, TypedContent tc, NodeEx node, CallContext cc,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(NodeEx midNode |
       midNode = mid.getNodeEx() and
@@ -5090,7 +5167,7 @@ private module FlowExploration {
 
   private predicate partialPathOutOfCallable0(
     PartialPathNodeFwd mid, ReturnPosition pos, FlowState state, CallContext innercc,
-    PartialAccessPath ap, Configuration config
+    PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     pos = mid.getNodeEx().(RetNodeEx).getReturnPosition() and
     state = mid.getState() and
@@ -5103,7 +5180,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate partialPathOutOfCallable1(
     PartialPathNodeFwd mid, DataFlowCall call, ReturnKindExt kind, FlowState state, CallContext cc,
-    PartialAccessPath ap, Configuration config
+    PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     exists(ReturnPosition pos, DataFlowCallable c, CallContext innercc |
       partialPathOutOfCallable0(mid, pos, state, innercc, ap, config) and
@@ -5117,7 +5194,7 @@ private module FlowExploration {
 
   private predicate partialPathOutOfCallable(
     PartialPathNodeFwd mid, NodeEx out, FlowState state, CallContext cc, PartialAccessPath ap,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(ReturnKindExt kind, DataFlowCall call |
       partialPathOutOfCallable1(mid, call, kind, state, cc, ap, config)
@@ -5129,7 +5206,7 @@ private module FlowExploration {
   pragma[noinline]
   private predicate partialPathIntoArg(
     PartialPathNodeFwd mid, ParameterPosition ppos, FlowState state, CallContext cc,
-    DataFlowCall call, PartialAccessPath ap, Configuration config
+    DataFlowCall call, PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     exists(ArgNode arg, ArgumentPosition apos |
       arg = mid.getNodeEx().asNode() and
@@ -5145,7 +5222,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate partialPathIntoCallable0(
     PartialPathNodeFwd mid, DataFlowCallable callable, ParameterPosition pos, FlowState state,
-    CallContext outercc, DataFlowCall call, PartialAccessPath ap, Configuration config
+    CallContext outercc, DataFlowCall call, PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     partialPathIntoArg(mid, pos, state, outercc, call, ap, config) and
     callable = resolveCall(call, outercc)
@@ -5154,7 +5231,7 @@ private module FlowExploration {
   private predicate partialPathIntoCallable(
     PartialPathNodeFwd mid, ParamNodeEx p, FlowState state, CallContext outercc,
     CallContextCall innercc, TSummaryCtx1 sc1, TSummaryCtx2 sc2, TSummaryCtx3 sc3,
-    DataFlowCall call, PartialAccessPath ap, Configuration config
+    DataFlowCall call, PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     exists(ParameterPosition pos, DataFlowCallable callable |
       partialPathIntoCallable0(mid, callable, pos, state, outercc, call, ap, config) and
@@ -5172,7 +5249,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate paramFlowsThroughInPartialPath(
     ReturnKindExt kind, FlowState state, CallContextCall cc, TSummaryCtx1 sc1, TSummaryCtx2 sc2,
-    TSummaryCtx3 sc3, PartialAccessPath ap, Configuration config
+    TSummaryCtx3 sc3, PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     exists(PartialPathNodeFwd mid, RetNodeEx ret |
       mid.getNodeEx() = ret and
@@ -5190,7 +5267,7 @@ private module FlowExploration {
   pragma[noinline]
   private predicate partialPathThroughCallable0(
     DataFlowCall call, PartialPathNodeFwd mid, ReturnKindExt kind, FlowState state, CallContext cc,
-    PartialAccessPath ap, Configuration config
+    PartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     exists(CallContext innercc, TSummaryCtx1 sc1, TSummaryCtx2 sc2, TSummaryCtx3 sc3 |
       partialPathIntoCallable(mid, _, _, cc, innercc, sc1, sc2, sc3, call, _, config) and
@@ -5200,7 +5277,7 @@ private module FlowExploration {
 
   private predicate partialPathThroughCallable(
     PartialPathNodeFwd mid, NodeEx out, FlowState state, CallContext cc, PartialAccessPath ap,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(DataFlowCall call, ReturnKindExt kind |
       partialPathThroughCallable0(call, mid, kind, state, cc, ap, config) and
@@ -5211,7 +5288,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate revPartialPathStep(
     PartialPathNodeRev mid, NodeEx node, FlowState state, TRevSummaryCtx1 sc1, TRevSummaryCtx2 sc2,
-    TRevSummaryCtx3 sc3, RevPartialAccessPath ap, Configuration config
+    TRevSummaryCtx3 sc3, RevPartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     localFlowStep(node, mid.getNodeEx(), config) and
     state = mid.getState() and
@@ -5320,7 +5397,7 @@ private module FlowExploration {
 
   pragma[nomagic]
   private predicate apConsRev(
-    RevPartialAccessPath ap1, Content c, RevPartialAccessPath ap2, Configuration config
+    RevPartialAccessPath ap1, Content c, RevPartialAccessPath ap2, MyTaintTrackingConfig config
   ) {
     exists(PartialPathNodeRev mid |
       revPartialPathReadStep(mid, ap1, c, _, ap2) and
@@ -5330,7 +5407,7 @@ private module FlowExploration {
 
   pragma[nomagic]
   private predicate revPartialPathStoreStep(
-    PartialPathNodeRev mid, RevPartialAccessPath ap, Content c, NodeEx node, Configuration config
+    PartialPathNodeRev mid, RevPartialAccessPath ap, Content c, NodeEx node, MyTaintTrackingConfig config
   ) {
     exists(NodeEx midNode, TypedContent tc |
       midNode = mid.getNodeEx() and
@@ -5346,7 +5423,7 @@ private module FlowExploration {
   private predicate revPartialPathIntoReturn(
     PartialPathNodeRev mid, ReturnPosition pos, FlowState state, TRevSummaryCtx1Some sc1,
     TRevSummaryCtx2Some sc2, TRevSummaryCtx3Some sc3, DataFlowCall call, RevPartialAccessPath ap,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(NodeEx out |
       mid.getNodeEx() = out and
@@ -5363,7 +5440,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate revPartialPathFlowsThrough(
     ArgumentPosition apos, FlowState state, TRevSummaryCtx1Some sc1, TRevSummaryCtx2Some sc2,
-    TRevSummaryCtx3Some sc3, RevPartialAccessPath ap, Configuration config
+    TRevSummaryCtx3Some sc3, RevPartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     exists(PartialPathNodeRev mid, ParamNodeEx p, ParameterPosition ppos |
       mid.getNodeEx() = p and
@@ -5381,7 +5458,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate revPartialPathThroughCallable0(
     DataFlowCall call, PartialPathNodeRev mid, ArgumentPosition pos, FlowState state,
-    RevPartialAccessPath ap, Configuration config
+    RevPartialAccessPath ap, MyTaintTrackingConfig config
   ) {
     exists(TRevSummaryCtx1Some sc1, TRevSummaryCtx2Some sc2, TRevSummaryCtx3Some sc3 |
       revPartialPathIntoReturn(mid, _, _, sc1, sc2, sc3, call, _, config) and
@@ -5392,7 +5469,7 @@ private module FlowExploration {
   pragma[nomagic]
   private predicate revPartialPathThroughCallable(
     PartialPathNodeRev mid, ArgNodeEx node, FlowState state, RevPartialAccessPath ap,
-    Configuration config
+    MyTaintTrackingConfig config
   ) {
     exists(DataFlowCall call, ArgumentPosition pos |
       revPartialPathThroughCallable0(call, mid, pos, state, ap, config) and
@@ -5404,7 +5481,7 @@ private module FlowExploration {
 import FlowExploration
 
 private predicate partialFlow(
-  PartialPathNode source, PartialPathNode node, Configuration configuration
+  PartialPathNode source, PartialPathNode node, MyTaintTrackingConfig configuration
 ) {
   source.getConfiguration() = configuration and
   source.isFwdSource() and
@@ -5412,7 +5489,7 @@ private predicate partialFlow(
 }
 
 private predicate revPartialFlow(
-  PartialPathNode node, PartialPathNode sink, Configuration configuration
+  PartialPathNode node, PartialPathNode sink, MyTaintTrackingConfig configuration
 ) {
   sink.getConfiguration() = configuration and
   sink.isRevSink() and

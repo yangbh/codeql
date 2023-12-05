@@ -262,6 +262,24 @@ private newtype TDataFlowCall =
   TCall(Call c) or
   TSummaryCall(SummarizedCallable c, Node receiver) {
     FlowSummaryImpl::Private::summaryCallbackRange(c, receiver)
+  } or
+  TNativeCall(Call src, Callable dst, Argument arg){
+    // 1. Thread api
+    // xxx = Thread(); xxx.start();
+    // src.(MethodAccess).getMethod().getDeclaringType().getASourceSupertype*().hasQualifiedName("java.lang", "Thread")
+    // and src.(MethodAccess).getMethod().getNumberOfParameters() = 0
+    // and src.(MethodAccess).getMethod().hasName("start")
+    // and dst = src.(MethodAccess).getMethod().getDeclaringType().getAMethod()
+    // and dst.(Method).hasName("run")
+    // 2. Runnable api
+    // RunnableDemo extends Runnable; xx = new RunnableDemo(tt); yy = new Thread(xx); yy.start();
+    // or 
+    src.(ConstructorCall).getConstructor().getDeclaringType().getASourceSupertype*().hasQualifiedName("java.lang", "Runnable")
+    // and not src.(ConstructorCall).getConstructor().getDeclaringType().getASourceSupertype*().hasQualifiedName("java.lang", "Thread")
+    and src.(ConstructorCall).getConstructor().getDeclaringType().getASourceSupertype*().hasQualifiedName("java.lang", "Thread")
+    and arg = src.(ConstructorCall).getArgument(0)
+    and dst = arg.getType().(RefType).getAMethod()
+    and dst.(Method).hasName("run")
   }
 
 /** A call relevant for data flow. Includes both source calls and synthesized calls. */
@@ -305,6 +323,38 @@ class SrcCall extends DataFlowCall, TCall {
   override string toString() { result = call.toString() }
 
   override Location getLocation() { result = call.getLocation() }
+}
+
+class RunableCall extends SrcCall{
+  Callable dst;
+  RunableCall() {
+    this = TCall(call) 
+    and call.(ConstructorCall).getConstructor().getDeclaringType().getASourceSupertype().hasQualifiedName("java.lang", "Runnable")
+    // and not call.(ConstructorCall).getConstructor().getDeclaringType().getASourceSupertype().hasQualifiedName("java.lang", "Thread")
+    and dst = call.getCallee()
+  }
+}
+
+class NativeCall extends DataFlowCall, TNativeCall{
+  Call src;
+  Callable dst;
+  Argument arg;
+
+  NativeCall(){this = TNativeCall(src, dst, arg)}
+  override string toString() { result = src.toString() + "(" + arg.toString() + ")" + " -> " + dst.toString()}
+
+  override Location getLocation() { result = src.getLocation() }
+
+  override DataFlowCallable getEnclosingCallable() {
+    result.asCallable() = src.getEnclosingCallable()
+  }
+  
+  Call getSrc(){result = src}
+
+  Callable getDst(){result = dst}
+
+  Argument getArg(){result = arg}
+
 }
 
 /** A synthesized call inside a `SummarizedCallable`. */
