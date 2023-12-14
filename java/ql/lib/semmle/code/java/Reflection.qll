@@ -6,6 +6,9 @@ import java
 import JDKAnnotations
 import Serializability
 import semmle.code.java.dataflow.DefUse
+private import semmle.code.java.dataflow.internal.DataFlowPrivate
+import semmle.code.java.dataflow.internal.DataFlowNodes::Public
+
 
 /** Holds if `f` is a field that may be read by reflection. */
 predicate reflectivelyRead(Field f) {
@@ -335,6 +338,21 @@ class ReflectiveMethodsAccess extends ClassMethodAccess {
     this.getCallee().hasName("getMethods") or
     this.getCallee().hasName("getDeclaredMethods")
   }
+
+  /**
+   * Gets a `Method` that is inferred to be accessed by this reflective use of `getMethod(..)`.
+   */
+  Method inferAccessedMethod() {
+    if this.getCallee().hasName("getDeclaredMethods")
+    then
+      // The method must be declared on the type itself.
+      result.getDeclaringType() = this.getInferredClassType()
+    else (
+      // The method must be public, and declared or inherited by the inferred class type.
+      result.isPublic() and
+      this.getInferredClassType().inherits(result)
+    )
+  }
 }
 
 /**
@@ -360,9 +378,30 @@ class ReflectiveMethodAccess extends ClassMethodAccess {
         result.isPublic() and
         this.getInferredClassType().inherits(result)
       )
-    ) and
-    // Only consider instances where the method name is provided as a `StringLiteral`.
-    result.hasName(this.getArgument(0).(StringLiteral).getValue())
+    ) 
+    and
+    (
+      // Only consider instances where the method name is provided as a `StringLiteral`.
+      result.hasName(this.getArgument(0).(StringLiteral).getValue())
+      or 
+      // match all args and params
+      // todo：可变长参数
+      matchReflectionMethod(this, result)
+    )
+  }
+
+  private predicate matchReflectionMethod(ReflectiveMethodAccess ma, Method m) {
+    ma.getNumArgument() > 1
+    and 
+    forall( ArgumentPosition ap | ap > 0 and ap<ma.getNumArgument()|
+      exists( Argument arg, Parameter para|  
+        ma.getArgument(ap) = arg
+        and ma.getInferredClassType().getAMethod() = m
+        and m.getNumberOfParameters() + 1 = ma.getNumArgument()
+        and m.getParameter(ap - 1) = para
+        and arg.getType().(TypeClass).getClassType() = para.getType()
+      )
+    )
   }
 }
 
@@ -404,4 +443,70 @@ class ReflectiveFieldAccess extends ClassMethodAccess {
     ) and
     result.hasName(this.getArgument(0).(StringLiteral).getValue())
   }
+}
+
+/**
+ * A call to `method.invoke(obj, args...)`.
+ */
+class ReflectiveInvokeAccess extends MethodAccess {
+  ReflectiveInvokeAccess() { 
+    this.getCallee().hasName("invoke") 
+    and this.getNumArgument() > 0
+  }
+
+  /**
+   * Gets a `Method` that is inferred to be accessed by this reflective use of `invoke(..)`.
+   */
+  Method inferAccessedMethod() {
+    exists(Argument obj, Variable v, ReflectiveMethodAccess rma| 
+      obj = this.getArgument(0) 
+      and this.getQualifier().getType().hasName("Method")
+      // todo: 跨变量的支持
+      and this.getQualifier() = v.getAnAccess()
+      and v.getAnAssignedValue() = rma
+      and result = rma.inferAccessedMethod()
+      and result.getNumberOfParameters() + 1 = this.getNumArgument()
+    |
+      forall( ArgumentPosition ap | ap > 0 and ap < this.getNumArgument()|
+        exists( Argument arg, Parameter para|
+          this.getArgument(ap) = arg
+          and result.getParameter(ap - 1) = para
+          and arg.getType() = para.getType()
+        )
+      )
+    )
+    or 
+    exists(Argument obj, Variable v, Variable vv, ReflectiveMethodsAccess rmsa, Node node1 , Node node2
+      | obj = this.getArgument(0) 
+        and this.getQualifier().getType().hasName("Method")
+        // todo: readStep为程序内分析，不支持程序间
+        and this.getQualifier() = v.getAnAccess()
+        and vv.getAnAssignedValue() = rmsa
+        and node1.asExpr() = vv.getAnAccess()
+        and node2.asExpr() = v.getAnAccess()
+        and readStep(node1, _, node2)
+        and result = rmsa.inferAccessedMethod()
+        and result.getNumberOfParameters() + 1 = this.getNumArgument()
+      |
+      forall( ArgumentPosition ap | ap > 0 and ap < this.getNumArgument()|
+        exists( Argument arg, Parameter para|
+          this.getArgument(ap) = arg
+          and result.getParameter(ap - 1) = para
+          and arg.getType() = para.getType()
+        )
+      )
+    )
+  }
+}
+
+private int parameterPosition() { result in [-1, any(Parameter p).getPosition()] }
+
+/** A parameter position represented by an integer. */
+private class ParameterPosition extends int {
+  ParameterPosition() { this = parameterPosition() }
+}
+
+/** An argument position represented by an integer. */
+private class ArgumentPosition extends int {
+  ArgumentPosition() { this = parameterPosition() }
 }

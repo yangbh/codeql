@@ -9,6 +9,7 @@ private import semmle.code.java.dataflow.FlowSteps
 private import semmle.code.java.dataflow.FlowSummary
 private import FlowSummaryImpl as FlowSummaryImpl
 private import DataFlowImplConsistency
+private import semmle.code.java.Reflection
 import DataFlowNodes::Private
 
 private newtype TReturnKind = TNormalReturnKind()
@@ -83,6 +84,58 @@ predicate jumpStep(Node node1, Node node2) {
   or
   any(AdditionalValueStep a).step(node1, node2) and
   node1.getEnclosingCallable() != node2.getEnclosingCallable()
+}
+
+/** Value step from the constructor call of a `Runnable` to the instance parameter (this) of `run`. */
+private class RunnableStartToRunStep extends AdditionalValueStep {
+  override predicate step(Node pred, Node succ) {
+    exists(ConstructorCall cc, Method m |
+      m.getDeclaringType() = cc.getConstructedType().getSourceDeclaration() and
+      cc.getConstructedType().getAnAncestor().hasQualifiedName("java.lang", "Runnable") and
+      m.hasName("run")
+    |
+      pred.asExpr() = cc and
+      succ.(InstanceParameterNode).getEnclosingCallable() = m
+    )
+  }
+}
+
+/** 
+ * new Thread(new Runnable(...))
+ */
+private class RunnableStartToRunStep2 extends AdditionalValueStep {
+  override predicate step(Node pred, Node succ) {
+    exists(ConstructorCall cc, Method m, Argument arg |
+      cc.getConstructedType().getAnAncestor().hasQualifiedName("java.lang", "Thread") and
+      cc.getArgument(0) = arg and 
+      m.getDeclaringType().getASourceSupertype().hasQualifiedName("java.lang", "Runnable") and
+      m.hasName("run")
+    |
+      pred.asExpr() = arg and 
+      succ.(InstanceParameterNode).getEnclosingCallable() = m
+    )
+  }
+}
+
+/** 
+ * method.invoke(obj, args...)
+ */
+private class ReflectionInvokeStep extends AdditionalValueStep{
+  override predicate step(Node pred, Node succ) {
+    exists(ReflectiveInvokeAccess invoke, Argument arg, ArgumentPosition ap, Method dst|
+      ap > 0
+      and invoke.getArgument(ap) = arg
+      and dst = invoke.inferAccessedMethod()
+    |
+      pred.asExpr() = arg and 
+      succ.asParameter() = dst.getParameter(ap-1)
+    )
+    or
+    exists(ReflectiveInvokeAccess invoke |
+      pred.asExpr() = invoke.getArgument(0)
+      and succ.(InstanceParameterNode).getEnclosingCallable() = invoke.inferAccessedMethod()
+    )
+  }
 }
 
 /**

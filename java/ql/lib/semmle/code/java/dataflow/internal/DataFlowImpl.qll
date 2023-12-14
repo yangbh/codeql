@@ -11,7 +11,6 @@ private import DataFlowImplCommon
 private import DataFlowImplSpecific::Private
 import DataFlowImplSpecific::Public
 import DataFlowImplCommonPublic
-
 import semmle.code.java.Member
 
 /**
@@ -230,27 +229,26 @@ abstract class Configuration extends string {
   }
 }
 
-// class MyTaintTrackingConfig = Configuration;
+class MyTaintTrackingConfig = Configuration;
 
-class MyTaintTrackingConfig extends Configuration {
-  MyTaintTrackingConfig() { this = "MyTaintTrackingConfig" }
+// class MyTaintTrackingConfig extends Configuration {
+//   MyTaintTrackingConfig() { this = "MyTaintTrackingConfig" }
 
-  override predicate isSource(Node source) {
-      exists(Method m | 
-          m.hasName("main") 
-          and m.getAParameter() = source.asParameter()
-      )
-      // and source.asParameter().getFile().getAbsolutePath().matches("%ThreadDemo.java")
-  }
+//   override predicate isSource(Node source) {
+//     exists(Method m | 
+//       m.hasName("main") 
+//       and m.getAParameter() = source.asParameter()
+//     )
+//     or source.asExpr().toString() = "tt"
+//   }
 
-  override predicate isSink(Node sink) {
-      exists(MethodAccess ma | 
-        ma.getMethod().hasName("println") and
-        sink.asExpr() = ma.getAnArgument()
-      )
-      // sink.asExpr().getFile().getAbsolutePath().matches("%.java")
-  }
-}
+//   override predicate isSink(Node sink) {
+//     exists(MethodAccess ma | 
+//       ma.getMethod().hasName("println") and
+//       sink.asExpr() = ma.getAnArgument()
+//     )
+//   }
+// }
 
 /**
  * This class exists to prevent mutual recursion between the user-overridden
@@ -600,19 +598,25 @@ pragma[nomagic]
 private predicate viableParamArgEx(DataFlowCall call, ParamNodeEx p, ArgNodeEx arg) {
   viableParamArg(call, p.asNode(), arg.asNode())
   // or threadViableParamArg(call ,p.asNode(), arg.asNode())
+  // or exists(NativeCall nc, DataFlowCallable dc|
+  //   nc.getArg() = arg.asNode().asExpr()
+  //   and nc.getSrc() = call.asCall()
+  //   and nc.getDst() = dc.asCallable()
+  //   and p.asNode().(InstanceParameterNode).getEnclosingCallable() = nc.getDst()
+  // )
 }
 
-// private predicate threadViableParamArg(DataFlowCall call, ParamNode p, ArgNode arg) {
-//   // java.lang.Thread#start()
-//   exists( DataFlowCallable c|
-//     call.asCall().getCallee().hasName("start")
-//     and call.asCall().getQualifier().getType().(RefType).getASupertype().hasQualifiedName("java.lang", "Thread")
-//     and arg.argumentOf(call, -1)
-//     and p.isParameterOf(c, -1)
-//     and c.asCallable().hasName("run")
-//     and call.asCall().getQualifier().getType() = c.asCallable().getDeclaringType()
-//   )
-// }
+private predicate threadViableParamArg(DataFlowCall call, ParamNode p, ArgNode arg) {
+  // java.lang.Thread#start()
+  exists( DataFlowCallable c|
+    call.asCall().getCallee().hasName("start")
+    and call.asCall().getQualifier().getType().(RefType).getASupertype().hasQualifiedName("java.lang", "Thread")
+    and arg.argumentOf(call, -1)
+    and p.isParameterOf(c, -1)
+    and c.asCallable().hasName("run")
+    and call.asCall().getQualifier().getType() = c.asCallable().getDeclaringType()
+  )
+}
 
 /**
  * Holds if field flow should be used for the given configuration.
@@ -675,7 +679,7 @@ module Stage1 {
     // read
     exists(ContentSet c |
       fwdFlowReadSet(c, node, cc, config) 
-      // and fwdFlowConsCandSet(c, _, config)
+      and fwdFlowConsCandSet(c, _, config)
     )
     or
     // flow into a callable
@@ -684,17 +688,17 @@ module Stage1 {
       viableParamArgEx(_, node, arg) and
       cc = true and
       not fullBarrier(node, config)
-
-      or
-      (
-        fwdFlow(arg, _, config)
-        and exists( NativeCall nc, DataFlowCallable dc|
-          nc.getSrc().getAnArgument() = arg.asNode().asExpr()
-          and node.asNode().(ParamNode).isParameterOf(dc, -1)
-          and dc.asCallable() = nc.getDst()
-          and cc = true
-        )
-      )
+      // or
+      // (
+      //   fwdFlow(arg, _, config)
+      //   and exists( NativeCall nc, DataFlowCallable dc|
+      //     nc.getSrc().getAnArgument() = arg.asNode().asExpr()
+      //     // and node.asNode().(ParamNode).isParameterOf(dc, -1)
+      //     and node.asNode().(InstanceParameterNode).getEnclosingCallable() = nc.getDst()
+      //     and dc.asCallable() = nc.getDst()
+      //     and cc = true
+      //   )
+      // )
     )
     or
     // flow out of a callable
@@ -835,7 +839,7 @@ module Stage1 {
     // read
     exists(NodeEx mid, ContentSet c |
       readSet(node, c, mid, config) and
-      // fwdFlowConsCandSet(c, _, pragma[only_bind_into](config)) and
+      fwdFlowConsCandSet(c, _, pragma[only_bind_into](config)) and
       revFlow(mid, toReturn, pragma[only_bind_into](config))
     )
     or
@@ -847,13 +851,14 @@ module Stage1 {
       revFlowInToReturn(call, node, config) and
       revFlowIsReturned(call, toReturn, config)
       // 
-      or exists( NativeCall nc, DataFlowCallable dc, ParamNodeEx p|
-        revFlow(p, toReturn, config) and
-        nc.getSrc() = call.asCall()
-        and nc.getSrc().getAnArgument() = node.asNode().asExpr()
-        and p.isParameterOf(dc, -1)
-        and dc.asCallable() = nc.getDst()
-      )
+      // or exists( NativeCall nc, DataFlowCallable dc, ParamNodeEx p|
+      //   revFlow(p, toReturn, config) and
+      //   nc.getSrc() = call.asCall()
+      //   and nc.getSrc().getAnArgument() = node.asNode().asExpr()
+      //   // and p.isParameterOf(dc, -1)
+      //   and p.asNode().(InstanceParameterNode).getEnclosingCallable() = nc.getDst()
+      //   and dc.asCallable() = nc.getDst()
+      // )
     )
     or
     // flow out of a callable
@@ -1394,8 +1399,10 @@ module Stage2 {
     or
     // read
     exists(Ap ap0, Content c |
-      fwdFlowRead(ap0, c, _, node, state, cc, argAp, config) and
+      fwdFlowRead(ap0, c, _, node, state, cc, argAp, config) 
+      and
       fwdFlowConsCand(ap0, c, ap, config)
+      // and ap = false
     )
     or
     // flow into a callable
@@ -3311,6 +3318,7 @@ private module Stage4 {
       revFlowInToReturn(call, node, state, returnAp0, ap, config) and
       revFlowIsReturned(call, toReturn, returnAp, returnAp0, config)
     )
+    // or()
     or
     // flow out of a callable
     revFlowOut(_, node, state, _, _, ap, config) and
@@ -4329,7 +4337,8 @@ private predicate pathIntoCallable(
 ) {
   exists(ParameterPosition pos, DataFlowCallable callable, AccessPath ap |
     pathIntoCallable0(mid, callable, pos, state, outercc, call, ap, config) and
-    p.isParameterOf(callable, pos) and
+    p.isParameterOf(callable, pos) 
+    and
     (
       sc = TSummaryCtxSome(p, state, ap)
       or
@@ -4340,31 +4349,19 @@ private predicate pathIntoCallable(
       // the comment in `PathNodeMid::isAtSink`.
       not config.getAFeature() instanceof FeatureEqualSourceSinkCallContext
     )
-  |
+    |
     if recordDataFlowCallSite(call, callable)
     then innercc = TSpecificCall(call)
     else innercc = TSomeCall()
   )
-  // or exists( NativeCall nc, DataFlowCallable dc, AccessPath ap |
-  //   pathNode(mid, _, state, outercc, _, ap, config, _)
+  // or exists( NativeCall nc, DataFlowCallable dc |
+  //   pathNode(mid, _, state, outercc, _, _, config, _)
   //   and mid.getNode().asExpr() = nc.getArg()
   //   and call.asCall() = nc.getSrc()
-  //   and p.isParameterOf(dc, -1)
+  //   and p.asNode().(InstanceParameterNode).getEnclosingCallable() = nc.getDst()
   //   and dc.asCallable() = nc.getDst()
-    // and
-    // (
-    //   sc = TSummaryCtxSome(p, state, ap)
-    //   or
-    //   not exists(TSummaryCtxSome(p, state, ap)) and
-    //   sc = TSummaryCtxNone() and
-    //   // When the call contexts of source and sink needs to match then there's
-    //   // never any reason to enter a callable except to find a summary. See also
-    //   // the comment in `PathNodeMid::isAtSink`.
-    //   not config.getAFeature() instanceof FeatureEqualSourceSinkCallContext
-    // )
-    // and if recordDataFlowCallSite(call, dc)
-    //   then innercc = TSpecificCall(call)
-    //   else innercc = TSomeCall()
+  //   and sc = TSummaryCtxNone()
+  //   and innercc = TSomeCall()
   // )
 }
 
