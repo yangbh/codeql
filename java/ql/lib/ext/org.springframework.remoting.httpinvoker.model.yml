@@ -1,0 +1,8 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sinkModel
+    data:
+      # added by m0d9 @202308
+      # todo verify
+      - ["org.springframework.remoting.httpinvoker", "HttpInvokerServiceExporter", True, "handleRequest", "", "", "Argument[0..1]", "deserilization", "manual"]

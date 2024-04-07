@@ -1,0 +1,9 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sinkModel
+    data:
+      # added by m0d9 @202308
+      # - ["javax.security.auth.login", "LoginContext", True, "LoginContext", "(String,javax.security.auth.Subject,javax.security.auth.callback.CallbackHandler,javax.security.auth.login.Configuration)", "", "Argument[3]", "jndi-injection", "manual"]
+      - ["javax.security.auth.login", "LoginContext", True, "LoginContext", "(String,Subject,CallbackHandler,Configuration)", "", "Argument[3]", "jndi-injection", "manual"]
+      # - ["javax.security.auth.login", "LoginContext", True, "LoginContext", "", "", "Argument[3]", "jndi-injection", "manual"]

@@ -1,0 +1,14 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sourceModel
+    data:
+      []
+      # todo: verify
+      # - ["org.apache.zookeeper", "WatchedEvent", True, "getData", "", "", "ReturnValue", "taint", "manual"]
+
+  - addsTo:
+      pack: codeql/java-all
+      extensible: summaryModel
+    data:
+      []

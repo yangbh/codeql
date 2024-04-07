@@ -4,3 +4,16 @@ extensions:
       extensible: summaryModel
     data:
       - ["org.yaml.snakeyaml", "Yaml", True, "load", "(String)", "", "Argument[0]", "ReturnValue", "taint", "ai-manual"]
+      # added by m0d9 @202308
+      - ["org.yaml.snakeyaml", "Yaml", False, "load", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]
+      - ["org.yaml.snakeyaml", "Yaml", False, "loadAs", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]
+      - ["org.yaml.snakeyaml", "Yaml", False, "loadAll", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]
+
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sinkModel
+    data:
+      # added by m0d9 @202308
+      - ["org.yaml.snakeyaml", "Yaml", False, "load", "", "", "Argument[0]", "deserilization", "manual"]
+      - ["org.yaml.snakeyaml", "Yaml", False, "loadAs", "", "", "Argument[0]", "deserilization", "manual"]
+      - ["org.yaml.snakeyaml", "Yaml", False, "loadAll", "", "", "Argument[0]", "deserilization", "manual"]

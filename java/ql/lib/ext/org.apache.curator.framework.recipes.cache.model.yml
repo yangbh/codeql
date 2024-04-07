@@ -1,0 +1,9 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sourceModel
+    data:
+      # added by m0d9 @202308
+      # todo: verify
+      - ["org.apache.curator.framework.recipes.cache", "ChildData", False, "getData", "()", "", "ReturnValue", "remote", "manual"]
+      - ["org.apache.curator.framework.recipes.cache", "TreeCacheEvent", False, "getData", "()", "", "ReturnValue", "remote", "manual"]

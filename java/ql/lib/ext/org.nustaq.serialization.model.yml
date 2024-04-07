@@ -1,0 +1,17 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sinkModel
+    data:
+      # added by m0d9 @202308
+      - ["org.nustaq.serialization", "FSTObjectInput", True, "readObject", "", "", "Argument[this]", "deserilization", "manual"]
+      - ["org.nustaq.serialization", "FSTObjectInput", True, "readObjectInternal", "", "", "Argument[this]", "deserilization", "manual"]
+      - ["org.nustaq.serialization", "FSTObjectInput", True, "readObjectWithHeader", "", "", "Argument[this]", "deserilization", "manual"]
+
+  - addsTo:
+      pack: codeql/java-all
+      extensible: summaryModel
+    data:
+      - ["org.nustaq.serialization", "FSTObjectInput", True, "FSTObjectInput", "(InputStream)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
+      - ["org.nustaq.serialization", "FSTObjectInput", True, "FSTObjectInput", "(InputStream,FSTConfiguration)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
+      - ["org.nustaq.serialization", "FSTConfiguration", True, "getObjectInput", "(InputStream)", "", "Argument[0]", "ReturnValue", "taint", "manual"]

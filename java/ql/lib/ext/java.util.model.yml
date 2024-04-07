@@ -181,6 +181,9 @@ extensions:
       - ["java.util", "Map", True, "computeIfAbsent", "", "", "Argument[this].MapValue", "ReturnValue", "value", "manual"]
       - ["java.util", "Map", True, "computeIfAbsent", "", "", "Argument[1].ReturnValue", "Argument[this].MapValue", "value", "manual"]
       - ["java.util", "Map", True, "computeIfAbsent", "", "", "Argument[1].ReturnValue", "ReturnValue", "value", "manual"]
+      # added by m0d9@202307
+      - ["java.util", "Map", True, "computeIfAbsent", "", "", "Argument[0]", "Argument[this].MapKey", "value", "manual"]
+      # end
       - ["java.util", "Map", False, "copyOf", "(Map)", "", "Argument[0].MapKey", "ReturnValue.MapKey", "value", "manual"]
       - ["java.util", "Map", False, "copyOf", "(Map)", "", "Argument[0].MapValue", "ReturnValue.MapValue", "value", "manual"]
       - ["java.util", "Map", False, "entry", "(Object,Object)", "", "Argument[0]", "ReturnValue.MapKey", "value", "manual"]
@@ -299,6 +302,10 @@ extensions:
       - ["java.util", "PriorityQueue", False, "PriorityQueue", "(Collection)", "", "Argument[0].Element", "Argument[this].Element", "value", "manual"]
       - ["java.util", "PriorityQueue", False, "PriorityQueue", "(PriorityQueue)", "", "Argument[0].Element", "Argument[this].Element", "value", "manual"]
       - ["java.util", "PriorityQueue", False, "PriorityQueue", "(SortedSet)", "", "Argument[0].Element", "Argument[this].Element", "value", "manual"]
+      # added by m0d9@202309
+      - ["java.util", "Properties", True, "load", "(InputStream)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
+      - ["java.util", "Properties", True, "load", "(Reader)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
+      # end
       - ["java.util", "Properties", True, "getProperty", "(String)", "", "Argument[this].MapValue", "ReturnValue", "value", "manual"]
       - ["java.util", "Properties", True, "getProperty", "(String,String)", "", "Argument[this].MapValue", "ReturnValue", "value", "manual"]
       - ["java.util", "Properties", True, "getProperty", "(String,String)", "", "Argument[1]", "ReturnValue", "value", "manual"]

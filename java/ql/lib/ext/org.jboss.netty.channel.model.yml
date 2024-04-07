@@ -1,0 +1,14 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sourceModel
+    data:
+      # added by m0d9 @202308
+      # attention: no Argument, use Parameter, just test it
+      - ["org.jboss.netty.channel", "SimpleChannelHandler", True, "messageReceived", "", "", "Parameter[1]", "remote", "manual"]
+
+  - addsTo:
+      pack: codeql/java-all
+      extensible: summaryModel
+    data:
+      - ["org.jboss.netty.channel", "MessageEvent", True, "getMessage", "", "", "Argument[this]", "ReturnValue", "taint", "manual"]

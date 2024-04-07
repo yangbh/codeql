@@ -1,0 +1,7 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sinkModel
+    data:
+      - ["org.apache.kafka.clients.producer", "KafkaProducer", False, "KafkaProducer", "", "", "Argument[0]", "kafka", "manual"]
+      - ["org.apache.kafka.clients.consumer", "KafkaConsumer", False, "KafkaConsumer", "", "", "Argument[0]", "kafka", "manual"]

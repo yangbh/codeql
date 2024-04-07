@@ -55,6 +55,10 @@ extensions:
       - ["java.lang", "System", False, "getenv", "", "", "ReturnValue", "environment", "manual"]
       - ["java.lang", "System", False, "getProperties", "", "", "ReturnValue", "environment", "manual"]
       - ["java.lang", "System", False, "getProperty", "", "", "ReturnValue", "environment", "manual"]
+      # added by m0d9 for ActiveMQ CVE-2023-46604
+      # - ["java.lang", "Class", True, "forName", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]
+      # - ["java.lang", "Class", True, "getConstructor", "", "", "Argument[this]", "ReturnValue", "taint", "manual"]
+      # end
   - addsTo:
       pack: codeql/java-all
       extensible: summaryModel
@@ -161,6 +165,9 @@ extensions:
       - ["java.lang", "Throwable", True, "initCause", "(Throwable)", "", "Argument[this]", "ReturnValue", "value", "df-manual"]
       - ["java.lang", "Throwable", True, "toString", "()", "", "Argument[this].SyntheticField[java.lang.Throwable.message]", "ReturnValue", "taint", "manual"]
       - ["java.lang", "UnsupportedOperationException", False, "UnsupportedOperationException", "(String)", "", "Argument[0]", "Argument[this].SyntheticField[java.lang.Throwable.message]", "value", "manual"]
+      # added by m0d9@202309, to be verified
+      - ["java.lang", "Object", False, "toString", "", "", "Argument[this]", "ReturnValue", "taint", "manual"]
+      # end
   - addsTo:
       pack: codeql/java-all
       extensible: neutralModel

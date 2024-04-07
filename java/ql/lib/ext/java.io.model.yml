@@ -13,6 +13,11 @@ extensions:
       - ["java.io", "FileInputStream", True, "FileInputStream", "(String)", "", "Argument[0]", "path-injection", "ai-manual"]
       - ["java.io", "FileOutputStream", False, "FileOutputStream", "", "", "Argument[0]", "path-injection", "manual"]
       - ["java.io", "FileOutputStream", False, "write", "", "", "Argument[0]", "file-content-store", "manual"]
+      # added by m0d9@202309, to be verified
+      # - ["java.io", "FileOutputStream", False, "write", "(byte)", "", "Argument[0]", "file-content-store", "manual"]
+      - ["java.io", "ObjectInputStream", True, "readObject", "()", "", "Argument[this]", "deserilization", "manual"]
+      - ["java.io", "OutputStream", False, "write", "(byte[])", "", "Argument[0]", "test", "manual"]
+      # end
       - ["java.io", "FileReader", True, "FileReader", "(File)", "", "Argument[0]", "path-injection", "ai-manual"]
       - ["java.io", "FileReader", True, "FileReader", "(FileDescriptor)", "", "Argument[0]", "path-injection", "manual"]
       - ["java.io", "FileReader", True, "FileReader", "(File,Charset)", "", "Argument[0]", "path-injection", "manual"]
@@ -32,7 +37,8 @@ extensions:
       - ["java.io", "PrintStream", True, "print", "", "", "Argument[0]", "file-content-store", "manual"]
       - ["java.io", "PrintStream", True, "printf", "(Locale,String,Object[])", "", "Argument[1..2]", "file-content-store", "manual"]
       - ["java.io", "PrintStream", True, "printf", "(String,Object[])", "", "Argument[0..1]", "file-content-store", "manual"]
-      - ["java.io", "PrintStream", True, "println", "", "", "Argument[0]", "file-content-store", "manual"]
+      # disabled by m0d9@202312
+      # - ["java.io", "PrintStream", True, "println", "", "", "Argument[0]", "file-content-store", "manual"]
       - ["java.io", "PrintStream", True, "write", "", "", "Argument[0]", "file-content-store", "manual"]
       - ["java.io", "PrintStream", True, "writeBytes", "", "", "Argument[0]", "file-content-store", "manual"]
       - ["java.io", "PrintWriter", False, "PrintWriter", "(File)", "", "Argument[0]", "path-injection", "manual"]

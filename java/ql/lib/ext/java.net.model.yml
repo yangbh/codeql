@@ -5,6 +5,8 @@ extensions:
     data:
       - ["java.net", "Socket", False, "getInputStream", "()", "", "ReturnValue", "remote", "manual"]
       - ["java.net", "URLConnection", False, "getInputStream", "()", "", "ReturnValue", "remote", "manual"]
+      # added by m0d9 for udp socket
+      - ["java.net", "DatagramPacket", False, "getData", "()", "", "ReturnValue", "remote", "manual"]
   - addsTo:
       pack: codeql/java-all
       extensible: sinkModel

@@ -1,0 +1,27 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sinkModel
+    data:
+      # []
+      # added by m0d9 @202308
+      # - ["com.caucho.hessian.io", "Hessian2Output", True, "writeObject", "(Object)", "", "Argument[0]", "deserilization", "manual"]
+      - ["com.caucho.hessian.io", "Hessian2Input", True, "readObject", "", "", "Argument[this]", "deserilization", "manual"]
+      - ["com.caucho.hessian.io", "Hessian2Input", True, "readString", "", "", "Argument[this]", "deserilization", "manual"]
+      # - ["com.caucho.hessian.server", "HessianSkeleton", False, "invoke", "", "", "Argument[0]", "deserilization", "manual"]
+      - ["com.caucho.hessian.server", "HessianSkeleton", False, "invoke", "(InputStream,OutputStream)", "", "Argument[0]", "deserilization", "manual"]
+      - ["com.caucho.hessian.server", "HessianSkeleton", False, "invoke", "(InputStream,OutputStream,SerializerFactory)", "", "Argument[0]", "deserilization", "manual"]
+      - ["com.caucho.hessian.server", "HessianSkeleton", False, "invoke", "(AbstractHessianInput,AbstractHessianOutput)", "", "Argument[0]", "deserilization", "manual"]
+      - ["com.caucho.hessian.server", "HessianSkeleton", False, "invoke", "(Object,AbstractHessianInput,AbstractHessianOutput)", "", "Argument[1]", "deserilization", "manual"]
+
+  - addsTo:
+      pack: codeql/java-all
+      extensible: summaryModel
+    data:
+      # []
+      # - ["com.caucho.hessian.io", "Hessian2Input", True, "Hessian2Input", "(InputStream)", "", "Argument[0]", "Argument[this].Field[com.caucho.hessian.io.Hessian2Input._is]", "taint", "manual"]
+      - ["com.caucho.hessian.io", "Hessian2Input", True, "Hessian2Input", "(InputStream)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
+      # - ["com.caucho.hessian.io", "Hessian2Input", True, "Hessian2Input", "(InputStream)", "", "Argument[0]", "ReturnValue", "taint", "manual"]
+      - ["com.caucho.hessian.io", "Hessian2Input", True, "init", "(InputStream)", "", "Argument[0]", "Argument[this]", "taint", "manual"]
+      # - ["com.caucho.hessian.io", "Hessian2Input", True, "readString", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]
+      # - ["com.caucho.hessian.io", "Hessian2Input", True, "readObject", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]

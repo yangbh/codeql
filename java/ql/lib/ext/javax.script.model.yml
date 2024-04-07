@@ -4,3 +4,5 @@ extensions:
       extensible: sinkModel
     data:
       - ["javax.script", "CompiledScript", False, "eval", "", "", "Argument[this]", "mvel-injection", "manual"]
+      # added by m0d9 @202308
+      - ["javax.script", "ScriptEngine", True, "eval", "", "", "Argument[0]", "mvel", "manual"]

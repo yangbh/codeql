@@ -25,6 +25,17 @@ extensions:
       - ["java.sql", "Connection", True, "nativeSQL", "(String)", "", "Argument[0]", "ReturnValue", "taint", "hq-manual"]
       - ["java.sql", "ResultSet", True, "getString", "(String)", "", "Argument[this]", "ReturnValue", "taint", "manual"]
 
+      # - ["java.sql", "ResultSet", True, "getBytes", "(int)", "", "Argument[this]", "ReturnValue", "taint", "manual"]
+
+  # added by m0d9 @20230726
+  # todo: maybe leads to false alarm
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sourceModel
+    data:
+      - ["java.sql", "ResultSet", True, "getString", "(String)", "", "ReturnValue", "taint", "manual"]
+      # - ["java.sql", "ResultSet", True, "getString", "(String)", "", "ReturnValue", "taint", "manual"]
+
   - addsTo:
       pack: codeql/java-all
       extensible: neutralModel

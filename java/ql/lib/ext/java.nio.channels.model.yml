@@ -13,3 +13,11 @@ extensions:
       - ["java.nio.channels", "FileChannel", False, "open", "(Path,Set,FileAttribute[])", "", "Argument[0]", "path-injection", "ai-manual"]
       - ["java.nio.channels", "FileChannel", True, "write", "(ByteBuffer,long)", "", "Argument[0]", "file-content-store", "ai-manual"]
       - ["java.nio.channels", "FileChannel", True, "write", "(ByteBuffer)", "", "Argument[0]", "file-content-store", "ai-manual"]
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sourceModel
+    data:
+      # added by m0d9 @202312
+      - ["java.nio.channels", "SocketChannel", False, "read", "(ByteBuffer)", "", "Argument[0]", "remote", "manual"]
+      - ["java.nio.channels", "SocketChannel", False, "read", "(ByteBuffer[])", "", "Argument[0]", "remote", "manual"]
+      - ["java.nio.channels", "SocketChannel", False, "read", "(ByteBuffer[],int,int)", "", "Argument[0]", "remote", "manual"]
