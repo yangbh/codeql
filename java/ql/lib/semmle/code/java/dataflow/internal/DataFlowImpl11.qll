@@ -8,12 +8,14 @@ private import codeql.util.Unit
 private import codeql.util.Option
 private import codeql.util.Boolean
 private import codeql.util.Location
-private import codeql.dataflow.DataFlow
+// private import codeql.dataflow.DataFlow
+private import semmle.code.java.dataflow.DataFlow11
+private import semmle.code.java.dataflow.internal.DataFlowImplCommon11
 
 module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
   private import Lang
   private import DataFlowMake<Location, Lang>
-  private import DataFlowImplCommon::MakeImplCommon<Location, Lang>
+  private import DataFlowImplCommon11::MakeImplCommon<Location, Lang>
   private import DataFlowImplCommonPublic
 
   /**
@@ -476,22 +478,11 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
     pragma[nomagic]
     private predicate viableReturnPosOutEx(DataFlowCall call, ReturnPosition pos, NodeEx out) {
       viableReturnPosOut(call, pos, out.asNode())
-      // for invoke
-      or 
-      exists(ParamUpdateReturnKind kind, ParameterPosition pp |  
-        kind.getPosition() = pp and
-        kind.getAnOutNode(call) = out.asNode()
-        | 
-        viableReturnPosOutExJavaPatch(call, pos.getCallable(), pp)
-      )
     }
 
     pragma[nomagic]
     private predicate viableParamArgEx(DataFlowCall call, ParamNodeEx p, ArgNodeEx arg) {
       viableParamArg(call, p.asNode(), arg.asNode())
-      // for invoke
-      or
-      viableParamArgJavaPatch(call, p.asNode(), arg.asNode())
     }
 
     /**
@@ -616,19 +607,8 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
        * Holds if an argument to `call` is reached in the flow covered by `fwdFlow`.
        */
       pragma[nomagic]
-      // private predicate fwdFlowIsEntered(DataFlowCall call, Cc cc) { fwdFlowIn(call, _, cc, _) }
+      private predicate fwdFlowIsEntered(DataFlowCall call, Cc cc) { fwdFlowIn(call, _, cc, _) }
 
-      private predicate fwdFlowIsEntered(DataFlowCall call, Cc cc) { 
-        fwdFlowIn(call, _, cc, _) 
-        // for invoke
-        or
-        exists(ArgNodeEx arg|
-          fwdFlow(arg, cc)
-          |
-          fwdFlowIsEnteredJavaPatch(call, arg.asNode())
-        )
-      }
-      
       pragma[nomagic]
       private predicate fwdFlowInReducedViableImplInSomeCallContext(
         DataFlowCall call, NodeEx arg, ParamNodeEx p, DataFlowCallable target
@@ -701,14 +681,6 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
           fwdFlowReturnPosition(pos, cc) and
           viableReturnPosOutEx(call, pos, out) and
           not fullBarrier(out)
-        )
-        // for invoke
-        or
-        exists( ReturnPosition pos, NodeEx pred|
-          cc = true and
-          getNodeEnclosingCallable(pred.asNode().(ReturnNodeExt)) = pos.getCallable()
-          |
-          fwdFlowOutJavaPatch(call, out.asNode(), pred.asNode())  
         )
       }
 
@@ -4446,21 +4418,6 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
         then innercc = TSpecificCall(call)
         else innercc = TSomeCall()
       )
-      or
-      // flow invoke
-      exists(NodeEx arg, DataFlowType t|
-        (
-          sc = TSummaryCtxSome(p, state, t, _)
-          or
-          not exists(TSummaryCtxSome(p, state, t, _)) and
-          sc = TSummaryCtxNone()
-        )
-        and innercc = TSomeCall()
-        and pathNode(mid, _, state, outercc, _, t, _, _, _)
-        and mid.getNodeEx() = arg
-        |
-        pathIntoCallableJavaPatch(call, arg.asNode(), p.asNode())
-      )
     }
 
     /** Holds if data may flow from a parameter given by `sc` to a return of kind `kind`. */
@@ -4501,18 +4458,6 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
       exists(DataFlowCall call, ReturnKindExt kind, AccessPathApprox apa |
         pathThroughCallable0(call, mid, kind, state, cc, t, ap, apa, label) and
         out = getAnOutNodeFlow(kind, call, apa)
-      )
-      or 
-      // for invoke
-      exists(DataFlowCall call, ReturnKindExt kind1, ReturnKindExt kind2, AccessPathApprox apa,
-        ParameterPosition p1, ParameterPosition p2
-        |
-        pathThroughCallable0(call, mid, kind1, state, cc, t, ap, apa, label)
-        and kind1.(ParamUpdateReturnKind).getPosition() = p1
-        and out = getAnOutNodeFlow(kind2, call, apa)
-        and kind2.(ParamUpdateReturnKind).getPosition() = p2
-        |
-        pathThroughCallableJavaPatch(call, p1, p2)
       )
     }
 

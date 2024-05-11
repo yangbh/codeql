@@ -2486,6 +2486,8 @@ class Argument extends Expr {
       arrayindex = pos - tgt.getVaragsParameterIndex() and
       arrayindex >= 0 and
       arrayindex <= call.getNumArgument() - tgt.getNumberOfParameters()
+      // for invoke
+      and not tgt.hasName("invoke")
     )
   }
 

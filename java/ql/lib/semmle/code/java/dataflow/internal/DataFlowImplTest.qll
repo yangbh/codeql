@@ -9,11 +9,18 @@ private import codeql.util.Option
 private import codeql.util.Boolean
 private import codeql.util.Location
 private import codeql.dataflow.DataFlow
+private import codeql.dataflow.internal.DataFlowImplCommon
 
-module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
+private import semmle.code.Location
+private import DataFlowImplSpecific
+
+
+// module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
+module MakeImpl{
+  private module Lang = JavaDataFlow;
   private import Lang
   private import DataFlowMake<Location, Lang>
-  private import DataFlowImplCommon::MakeImplCommon<Location, Lang>
+  private import MakeImplCommon<Location, Lang>
   private import DataFlowImplCommonPublic
 
   /**
@@ -132,15 +139,36 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
     predicate includeHiddenNodes();
   }
 
+  // /**
+  //  * Provides default `FlowState` implementations given a `StateConfigSig`.
+  //  */
+  // module DefaultState<ConfigSig Config> {
+  //   class FlowState = Unit;
+
+  //   predicate isSource(Node source, FlowState state) { Config::isSource(source) and exists(state) }
+
+  //   predicate isSink(Node sink, FlowState state) { Config::isSink(sink) and exists(state) }
+
+  //   predicate isBarrier(Node node, FlowState state) { none() }
+
+  //   predicate isBarrierIn(Node node, FlowState state) { none() }
+
+  //   predicate isBarrierOut(Node node, FlowState state) { none() }
+
+  //   predicate isAdditionalFlowStep(Node node1, FlowState state1, Node node2, FlowState state2) {
+  //     none()
+  //   }
+  // }
+
   /**
    * Provides default `FlowState` implementations given a `StateConfigSig`.
    */
-  module DefaultState<ConfigSig Config> {
+  module DefaultState<ConfigSig Test> {
     class FlowState = Unit;
 
-    predicate isSource(Node source, FlowState state) { Config::isSource(source) and exists(state) }
+    predicate isSource(Node source, FlowState state) { Test::isSource(source) and exists(state) }
 
-    predicate isSink(Node sink, FlowState state) { Config::isSink(sink) and exists(state) }
+    predicate isSink(Node sink, FlowState state) { Test::isSink(sink) and exists(state) }
 
     predicate isBarrier(Node node, FlowState state) { none() }
 
@@ -154,9 +182,63 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
   }
 
   /**
+   * just for test
+   */
+  module MyTaintTrackingConfig implements ConfigSig {
+
+    private import semmle.code.java.dataflow.FlowSteps
+
+    int accessPathLimit() { result = 5 }
+
+    int fieldFlowBranchLimit() { result = 100 }
+
+    predicate isSource(Node source) {
+        exists(Method m |
+            m.hasName( "main") 
+            and m.getAParameter() = source.asParameter()
+        )
+    }
+
+    predicate isSink(Node sink) {
+        exists(MethodCall ma | 
+            ma.getCallee().getDeclaringType().hasQualifiedName("java.io", "PrintStream") and
+            sink.asExpr() = ma.getAnArgument()
+        )
+    }
+
+    predicate isAdditionalFlowStep(Node src, Node sink) {
+      // defaultAdditionalTaintStep(node1, node2)
+      // 来自TaintTrackingUtil，但是不能直接import，存在依赖关系
+      exists(Content f |
+        readStep(src, f, sink) and
+        not sink.getTypeBound() instanceof PrimitiveType and
+        not sink.getTypeBound() instanceof BoxedType and
+        not sink.getTypeBound() instanceof NumberType and
+        (
+          containerContent(f)
+          or
+          f instanceof TaintInheritingContent
+        )
+      )
+    }
+  }
+
+  private module Config implements FullStateConfigSig {
+    import DefaultState<MyTaintTrackingConfig>
+    import MyTaintTrackingConfig
+
+    predicate accessPathLimit = MyTaintTrackingConfig::accessPathLimit/0;
+
+    predicate isAdditionalFlowStep(Node node1, Node node2, string model) {
+      none()
+    }
+  }
+
+  /**
    * Constructs a data flow computation given a full input configuration.
    */
-  module Impl<FullStateConfigSig Config> {
+  // module Impl<FullStateConfigSig Config> {
+  module Impl {
     private class FlowState = Config::FlowState;
 
     private newtype TNodeEx =
@@ -476,22 +558,11 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
     pragma[nomagic]
     private predicate viableReturnPosOutEx(DataFlowCall call, ReturnPosition pos, NodeEx out) {
       viableReturnPosOut(call, pos, out.asNode())
-      // for invoke
-      or 
-      exists(ParamUpdateReturnKind kind, ParameterPosition pp |  
-        kind.getPosition() = pp and
-        kind.getAnOutNode(call) = out.asNode()
-        | 
-        viableReturnPosOutExJavaPatch(call, pos.getCallable(), pp)
-      )
     }
 
     pragma[nomagic]
     private predicate viableParamArgEx(DataFlowCall call, ParamNodeEx p, ArgNodeEx arg) {
       viableParamArg(call, p.asNode(), arg.asNode())
-      // for invoke
-      or
-      viableParamArgJavaPatch(call, p.asNode(), arg.asNode())
     }
 
     /**
@@ -616,19 +687,8 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
        * Holds if an argument to `call` is reached in the flow covered by `fwdFlow`.
        */
       pragma[nomagic]
-      // private predicate fwdFlowIsEntered(DataFlowCall call, Cc cc) { fwdFlowIn(call, _, cc, _) }
+      private predicate fwdFlowIsEntered(DataFlowCall call, Cc cc) { fwdFlowIn(call, _, cc, _) }
 
-      private predicate fwdFlowIsEntered(DataFlowCall call, Cc cc) { 
-        fwdFlowIn(call, _, cc, _) 
-        // for invoke
-        or
-        exists(ArgNodeEx arg|
-          fwdFlow(arg, cc)
-          |
-          fwdFlowIsEnteredJavaPatch(call, arg.asNode())
-        )
-      }
-      
       pragma[nomagic]
       private predicate fwdFlowInReducedViableImplInSomeCallContext(
         DataFlowCall call, NodeEx arg, ParamNodeEx p, DataFlowCallable target
@@ -701,14 +761,6 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
           fwdFlowReturnPosition(pos, cc) and
           viableReturnPosOutEx(call, pos, out) and
           not fullBarrier(out)
-        )
-        // for invoke
-        or
-        exists( ReturnPosition pos, NodeEx pred|
-          cc = true and
-          getNodeEnclosingCallable(pred.asNode().(ReturnNodeExt)) = pos.getCallable()
-          |
-          fwdFlowOutJavaPatch(call, out.asNode(), pred.asNode())  
         )
       }
 
@@ -4446,21 +4498,6 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
         then innercc = TSpecificCall(call)
         else innercc = TSomeCall()
       )
-      or
-      // flow invoke
-      exists(NodeEx arg, DataFlowType t|
-        (
-          sc = TSummaryCtxSome(p, state, t, _)
-          or
-          not exists(TSummaryCtxSome(p, state, t, _)) and
-          sc = TSummaryCtxNone()
-        )
-        and innercc = TSomeCall()
-        and pathNode(mid, _, state, outercc, _, t, _, _, _)
-        and mid.getNodeEx() = arg
-        |
-        pathIntoCallableJavaPatch(call, arg.asNode(), p.asNode())
-      )
     }
 
     /** Holds if data may flow from a parameter given by `sc` to a return of kind `kind`. */
@@ -4501,18 +4538,6 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
       exists(DataFlowCall call, ReturnKindExt kind, AccessPathApprox apa |
         pathThroughCallable0(call, mid, kind, state, cc, t, ap, apa, label) and
         out = getAnOutNodeFlow(kind, call, apa)
-      )
-      or 
-      // for invoke
-      exists(DataFlowCall call, ReturnKindExt kind1, ReturnKindExt kind2, AccessPathApprox apa,
-        ParameterPosition p1, ParameterPosition p2
-        |
-        pathThroughCallable0(call, mid, kind1, state, cc, t, ap, apa, label)
-        and kind1.(ParamUpdateReturnKind).getPosition() = p1
-        and out = getAnOutNodeFlow(kind2, call, apa)
-        and kind2.(ParamUpdateReturnKind).getPosition() = p2
-        |
-        pathThroughCallableJavaPatch(call, p1, p2)
       )
     }
 
@@ -4818,19 +4843,19 @@ module MakeImpl<LocationSig Location, InputSig<Location> Lang> {
 
     private predicate flagDisable() { none() }
 
-    module FlowExplorationFwd<explorationLimitSig/0 explorationLimit> {
-      private import FlowExploration<explorationLimit/0, flagEnable/0, flagDisable/0>
-      import Public
+    // module FlowExplorationFwd<explorationLimitSig/0 explorationLimit> {
+    //   private import FlowExploration<explorationLimit/0, flagEnable/0, flagDisable/0>
+    //   import Public
 
-      predicate partialFlow = partialFlowFwd/3;
-    }
+    //   predicate partialFlow = partialFlowFwd/3;
+    // }
 
-    module FlowExplorationRev<explorationLimitSig/0 explorationLimit> {
-      private import FlowExploration<explorationLimit/0, flagDisable/0, flagEnable/0>
-      import Public
+    // module FlowExplorationRev<explorationLimitSig/0 explorationLimit> {
+    //   private import FlowExploration<explorationLimit/0, flagDisable/0, flagEnable/0>
+    //   import Public
 
-      predicate partialFlow = partialFlowRev/3;
-    }
+    //   predicate partialFlow = partialFlowRev/3;
+    // }
 
     private module FlowExploration<
       explorationLimitSig/0 explorationLimit, flag/0 flagFwd, flag/0 flagRev>

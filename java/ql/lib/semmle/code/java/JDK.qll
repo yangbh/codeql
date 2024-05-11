@@ -123,6 +123,17 @@ class TypeNullPointerException extends Class {
  */
 class TypeClass extends Class {
   TypeClass() { this.getSourceDeclaration().hasQualifiedName("java.lang", "Class") }
+
+  // todo: 
+  // 1. Integer -> int
+  // 2. go into map/array
+  Type getClassType() {
+    this.toString() = "Class<" + result.toString() + ">"
+    or this.toString() = "Class<Integer>" and result.toString() = "int"
+    or this.toString() = "Class<? extends " + result.toString() + ">" and result instanceof RefType
+  }
+  
+  // string translateClassType()
 }
 
 /**

@@ -335,36 +335,11 @@ signature module InputSig<LocationSig Location> {
 
   /** Holds if `fieldFlowBranchLimit` should be ignored for flow going into/out of `c`. */
   default predicate ignoreFieldFlowBranchLimit(DataFlowCallable c) { none() }
-
-  // for invoke
-  default predicate viableParamArgJavaPatch(DataFlowCall call, ParameterNode p, ArgumentNode arg) {
-    none()
-  }
-
-  default predicate fwdFlowOutJavaPatch(DataFlowCall call, Node out, Node pred) {
-    none()
-  }
-
-  default predicate fwdFlowIsEnteredJavaPatch(DataFlowCall call, ArgumentNode arg) {
-    none()
-  }
-
-  default predicate viableReturnPosOutExJavaPatch(DataFlowCall call, DataFlowCallable c, ParameterPosition pp) {
-    none()
-  }
-
-  default predicate pathIntoCallableJavaPatch(DataFlowCall call, Node arg, Node p) {
-    none()
-  }
-
-  default predicate pathThroughCallableJavaPatch(DataFlowCall call, ParameterPosition p1, ParameterPosition p2) {
-    none()
-  }
 }
 
 module Configs<LocationSig Location, InputSig<Location> Lang> {
   private import Lang
-  private import internal.DataFlowImplCommon::MakeImplCommon<Location, Lang>
+  private import internal.DataFlowImplCommon11::MakeImplCommon<Location, Lang>
   import DataFlowImplCommonPublic
 
   /** An input configuration for data flow. */
@@ -580,7 +555,7 @@ module Configs<LocationSig Location, InputSig<Location> Lang> {
 
 module DataFlowMake<LocationSig Location, InputSig<Location> Lang> {
   private import Lang
-  private import internal.DataFlowImpl::MakeImpl<Location, Lang>
+  private import internal.DataFlowImpl11::MakeImpl<Location, Lang>
   import Configs<Location, Lang>
 
   /**

@@ -46,14 +46,14 @@ private XmlElement elementReferencingType(RefType rt) {
   result.getAnAttribute().getValue() = rt.getSourceDeclaration().getQualifiedName()
 }
 
-abstract private class ReflectiveClassIdentifier extends Expr {
+abstract class ReflectiveClassIdentifier extends Expr {
   /**
    * Gets the type of a class identified by this expression.
    */
   abstract RefType getReflectivelyIdentifiedClass();
 }
 
-private class ReflectiveClassIdentifierLiteral extends ReflectiveClassIdentifier, TypeLiteral {
+class ReflectiveClassIdentifierLiteral extends ReflectiveClassIdentifier, TypeLiteral {
   override RefType getReflectivelyIdentifiedClass() {
     result = this.getReferencedType().(RefType).getSourceDeclaration()
   }
@@ -70,16 +70,30 @@ class ReflectiveClassIdentifierMethodCall extends ReflectiveClassIdentifier, Met
     // A call to `ClassLoader.loadClass(...)`, from which we can infer `T` in the returned type `Class<T>`.
     this.getCallee().getDeclaringType().hasQualifiedName("java.lang", "ClassLoader") and
     this.getCallee().hasName("loadClass")
+    or
+    this.getCallee().getDeclaringType().hasQualifiedName("java.lang", "Object") and
+    this.getCallee().hasName("getClass")
+  }
+
+  Type getClassType(){
+    result = this.getQualifier().getType()
   }
 
   /**
    * If the argument to this call is a `StringLiteral`, then return that string.
    */
-  string getTypeName() { result = this.getArgument(0).(StringLiteral).getValue() }
+  // string getTypeName() { result = this.getArgument(0).(StringLiteral).getValue() }
+  string getTypeName() { 
+    this.getCallee().hasName("getClass")
+    and result = this.getQualifier().getType().toString()
+    or result = this.getArgument(0).(StringLiteral).getValue() 
+  }
 
   override RefType getReflectivelyIdentifiedClass() {
+    this.getCallee().hasName("getClass")
+    and result = this.getQualifier().getType()
     // We only handle cases where the class is specified as a string literal to this call.
-    result.getQualifiedName() = this.getTypeName()
+    or result.getQualifiedName() = this.getTypeName()
   }
 }
 
@@ -344,6 +358,21 @@ class ReflectiveGetMethodsCall extends ClassMethodCall {
     this.getCallee().hasName("getMethods") or
     this.getCallee().hasName("getDeclaredMethods")
   }
+
+  /**
+   * Gets a `Method` that is inferred to be accessed by this reflective use of `getMethod(..)`.
+   */
+  Method inferAccessedMethod() {
+    if this.getCallee().hasName("getDeclaredMethods")
+    then
+      // The method must be declared on the type itself.
+      result.getDeclaringType() = this.getInferredClassType()
+    else (
+      // The method must be public, and declared or inherited by the inferred class type.
+      result.isPublic() and
+      this.getInferredClassType().inherits(result)
+    )
+  }
 }
 
 /** DEPRECATED: Alias for `ReflectiveGetMethodsCall`. */
@@ -426,3 +455,116 @@ class ReflectiveGetFieldCall extends ClassMethodCall {
 
 /** DEPRECATED: Alias for `ReflectiveGetFieldCall`. */
 deprecated class ReflectiveFieldAccess = ReflectiveGetFieldCall;
+
+/**
+ * A call to `method.invoe(obj, args...)`.
+ */
+class ReflectiveInvokeAccess extends MethodCall {
+  ReflectiveInvokeAccess() { 
+    this.getCallee().hasName("invoke") 
+    and this.getNumArgument() > 0
+  }
+
+  // /**
+  //  * Gets a `Method` that is inferred to be accessed by this reflective use of `invoke(..)`.
+  //  */
+  // Method inferAccessedMethod() {
+  //   exists(Argument obj, Variable v, ReflectiveMethodAccess rma| 
+  //     obj = this.getArgument(0) 
+  //     and this.getQualifier().getType().hasName("Method")
+  //     // todo: 跨变量的支持
+  //     and this.getQualifier() = v.getAnAccess()
+  //     and v.getAnAssignedValue() = rma
+  //     and result = rma.inferAccessedMethod()
+  //     and result.getNumberOfParameters() + 1 = this.getNumArgument()
+  //   |
+  //     forall( ArgumentPosition ap | ap > 0 and ap < this.getNumArgument()|
+  //       exists( Argument arg, Parameter para|
+  //         this.getArgument(ap) = arg
+  //         and result.getParameter(ap - 1) = para
+  //         and arg.getType() = para.getType()
+  //       )
+  //     )
+  //   )
+  //   or 
+  //   exists(Argument obj, Variable v, Variable vv, ReflectiveMethodsAccess rmsa, Node node1 , Node node2
+  //     | obj = this.getArgument(0) 
+  //       and this.getQualifier().getType().hasName("Method")
+  //       // todo: readStep为程序内分析，不支持程序间
+  //       and this.getQualifier() = v.getAnAccess()
+  //       and vv.getAnAssignedValue() = rmsa
+  //       and node1.asExpr() = vv.getAnAccess()
+  //       and node2.asExpr() = v.getAnAccess()
+  //       and readStep(node1, _, node2)
+  //       and result = rmsa.inferAccessedMethod()
+  //       and result.getNumberOfParameters() + 1 = this.getNumArgument()
+  //     |
+  //     forall( ArgumentPosition ap | ap > 0 and ap < this.getNumArgument()|
+  //       exists( Argument arg, Parameter para|
+  //         this.getArgument(ap) = arg
+  //         and result.getParameter(ap - 1) = para
+  //         and arg.getType() = para.getType()
+  //       )
+  //     )
+  //   )
+  // }
+
+  /**
+   * Gets a `Method` that is inferred to be accessed by this reflective use of `invoke(..)`.
+   * method.invoe(obj, args...)
+   * obj flows from rma
+   * rma 即真实的method，此刻以xxx类型为主，不关注invoke 内部的obj 参数类型
+   * method = xxx.getMethod(...)
+   * method.invoke(...)
+   */
+  Method inferAccessedMethod(ReflectiveGetMethodCall rma) {
+    exists(Argument obj |
+      obj = this.getArgument(0) 
+      and this.getQualifier().getType().hasName("Method")
+      and result = rma.inferAccessedMethod()
+      and result.getNumberOfParameters() + 1 = this.getNumArgument()
+    |
+      forall( ArgumentPosition ap | ap > 0 and ap < this.getNumArgument()|
+        exists( Argument arg, Parameter para|
+          this.getArgument(ap) = arg
+          and result.getParameter(ap - 1) = para
+          and arg.getType() = para.getType()
+        )
+      )
+    )
+  }
+
+  // /**
+  //  * method = xxx1.getMethod(...)
+  //  * method.invoke(obj, ...)
+  //  */
+  // Method inferAccessedMethod(ReflectiveGetMethodCall rma, Variable src) {
+  //   exists(Argument obj |
+  //     obj = this.getArgument(0) 
+  //     and this.getQualifier().getType().hasName("Method")
+  //     // todo: 跨变量的支持
+  //     and result = rma.inferAccessedMethod()
+  //     and result.getNumberOfParameters() + 1 = this.getNumArgument()
+  //   |
+  //     forall( ArgumentPosition ap | ap > 0 and ap < this.getNumArgument()|
+  //       exists( Argument arg, Parameter para|
+  //         this.getArgument(ap) = arg
+  //         and result.getParameter(ap - 1) = para
+  //         and arg.getType() = para.getType()
+  //       )
+  //     )
+  //   )
+  // }
+}
+
+private int parameterPosition() { result in [-1, any(Parameter p).getPosition()] }
+
+/** A parameter position represented by an integer. */
+private class ParameterPosition extends int {
+  ParameterPosition() { this = parameterPosition() }
+}
+
+/** An argument position represented by an integer. */
+private class ArgumentPosition extends int {
+  ArgumentPosition() { this = parameterPosition() }
+}
