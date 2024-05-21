@@ -16,6 +16,9 @@ dependencies:
   codeql/typeflow: ${workspace}
   codeql/util: ${workspace}
   codeql/xml: ${workspace}
+  # added by m0d9
+  githubsecuritylab/codeql-java-extensions: ${workspace}
+  githubsecuritylab/codeql-java-library-sources: ${workspace}
 dataExtensions:
   - ext/*.model.yml
   - ext/generated/*.model.yml

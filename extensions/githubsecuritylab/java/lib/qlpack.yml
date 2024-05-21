@@ -1,0 +1,7 @@
+library: true 
+name: githubsecuritylab/codeql-java-libs
+version: 0.0.1
+dependencies:
+  codeql/java-all: '*'
+# libraryPathDependencies: 
+#   - codeql/java-all 

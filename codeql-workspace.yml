@@ -20,7 +20,11 @@ provide:
   - "swift/extractor-pack/codeql-extractor.yml"
   - "ql/extractor-pack/codeql-extractor.yml"
   - ".github/codeql/extensions/**/codeql-pack.yml"
-
+  # for githubsecuritylab
+  - "extensions/**/ext/qlpack.yml"
+  - "extensions/**/ext-library-sources/qlpack.yml"
+  - "extensions/**/lib/qlpack.yml"
+  - "extensions/**/src/qlpack.yml"
 versionPolicies:
   default:
     requireChangeNotes: true
