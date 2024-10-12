@@ -1,0 +1,9 @@
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sinkModel
+    data:
+      - ["org.apache.commons.jxpath", "JXPathContext", True, "getValue", "", "", "Argument[0]", "jxpath-injection", "manual"]
+      - ["org.apache.commons.jxpath", "JXPathContext", True, "iteratePointers", "", "", "Argument[0]", "jxpath-injection", "manual"]
+      - ["org.apache.commons.jxpath", "JXPathContext", True, "iterate", "", "", "Argument[0]", "jxpath-injection", "manual"]
+      - ["org.apache.commons.jxpath", "JXPathContext", True, "selectNodes", "", "", "Argument[0]", "jxpath-injection", "manual"]

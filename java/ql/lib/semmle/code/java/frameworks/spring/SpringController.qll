@@ -29,7 +29,11 @@ class SpringRestControllerAnnotation extends SpringControllerAnnotation {
  * A class annotated, directly or indirectly, as a Spring `Controller`.
  */
 class SpringController extends Class {
-  SpringController() { this.getAnAnnotation().getType() instanceof SpringControllerAnnotation }
+  SpringController() { 
+    this.getAnAnnotation().getType() instanceof SpringControllerAnnotation 
+    // added by m0d9 for spring mvc
+    or this.getASourceSupertype*().hasQualifiedName("org.springframework.web.servlet.mvc", "AbstractController")
+  }
 }
 
 /**

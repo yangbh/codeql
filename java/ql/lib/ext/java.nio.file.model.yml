@@ -57,7 +57,9 @@ extensions:
       - ["java.nio.file", "Files", True, "newByteChannel", "(Path,Set,FileAttribute[])", "", "Argument[0]", "ReturnValue", "taint", "ai-manual"]
       - ["java.nio.file", "Files", True, "newDirectoryStream", "(Path,DirectoryStream$Filter)", "", "Argument[0]", "ReturnValue", "taint", "ai-manual"]
       - ["java.nio.file", "Files", True, "newDirectoryStream", "(Path)", "", "Argument[0]", "ReturnValue", "taint", "ai-manual"]
-      - ["java.nio.file", "Files", True, "walk", "(Path,FileVisitOption[])", "", "Argument[0]", "ReturnValue", "taint", "ai-manual"]
+      # added by m0d9@20240903
+      - ["java.nio.file", "Files", True, "walk", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]
+      # - ["java.nio.file", "Files", True, "walk", "(Path,FileVisitOption[])", "", "Argument[0]", "ReturnValue", "taint", "ai-manual"]
       - ["java.nio.file", "FileSystem", True, "getPath", "(String,String[])", "", "Argument[0]", "ReturnValue", "taint", "manual"]
       - ["java.nio.file", "FileSystem", True, "getPath", "(String,String[])", "", "Argument[1]", "ReturnValue", "taint", "ai-manual"]
       - ["java.nio.file", "FileSystem", True, "getPathMatcher", "(String)", "", "Argument[0]", "ReturnValue", "taint", "ai-manual"]
