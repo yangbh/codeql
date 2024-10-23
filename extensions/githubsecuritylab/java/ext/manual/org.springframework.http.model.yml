@@ -1,7 +1,0 @@
-extensions:
-  - addsTo:
-      pack: codeql/java-all
-      extensible: sourceModel
-    data:
-      - ["org.springframework.http", "HttpInputMessage", True, "getBody", "", "", "ReturnValue", "remote", "manual"]
-

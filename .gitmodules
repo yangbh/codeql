@@ -1,0 +1,3 @@
+[submodule "extensions/githubsecuritylab"]
+	path = extensions/githubsecuritylab
+	url = git@git.woa.com:zzzzjchen/CodeQL-Community-Packs.git
